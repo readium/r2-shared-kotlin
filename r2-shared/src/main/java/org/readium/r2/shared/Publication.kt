@@ -1,7 +1,10 @@
 package org.readium.r2.shared
 
+import android.content.SharedPreferences
 import org.json.JSONArray
 import org.json.JSONObject
+import org.readium.r2.shared.UserSettings.UserSetting
+import org.readium.r2.shared.UserSettings.UserSettings
 import java.io.Serializable
 import java.net.URL
 
@@ -75,6 +78,12 @@ class Publication : Serializable {
     //var manifestDictionnary: Map<String, Any> = mapOf()
     var coverLink: Link?  = null
         get() = linkWithRel("cover")
+
+    var userSettings = UserSettings()
+
+    constructor(sharedPreferences: SharedPreferences) {
+
+    }
 
     fun baseUrl() : URL? {
         val selfLink = linkWithRel("self")
