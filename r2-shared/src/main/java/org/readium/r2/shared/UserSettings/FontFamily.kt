@@ -12,4 +12,7 @@ enum class FontFamilyCase(val value: String) : CharSequence by value {
 
 }
 
-class FontFamily(var _value: String = FontFamilyCase.Publisher.toString()) : UserSetting(FONT_FAMILY_REF, FONT_FAMILY_NAME, _value)
+class FontFamily(override var _value: Any = FontFamilyCase.Publisher.toString()) : UserSetting(FONT_FAMILY_REF, FONT_FAMILY_NAME, _value.toString()) {
+    override fun toString() = (_value as FontFamilyCase).toString()
+
+}

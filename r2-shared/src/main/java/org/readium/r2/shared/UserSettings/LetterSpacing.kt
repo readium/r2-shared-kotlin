@@ -1,27 +1,28 @@
 package org.readium.r2.shared.UserSettings
 
-class LetterSpacing(var _value: Float = min) : UserSetting(FONT_SIZE_REF, FONT_SIZE_NAME, _value.toString()){
+class LetterSpacing(override var _value: Any = min) : UserSetting(LETTER_SPACING_REF, LETTER_SPACING_NAME, _value.toString()){
 
     companion object {
         val max = 0.5f
         val min = 0.0f
         val step = 0.0625f
+        var floatValue = 0.0f
+    }
+
+    init {
+        floatValue = this._value as Float
     }
 
     fun increment(){
-        if (this._value + step <= max){
-            this._value += step
-        }
+        floatValue += (if (floatValue + step <= max) step else 0.0f)
     }
 
     fun decrement(){
-        if (this._value - step >= min){
-            this._value -= step
-        }
+        floatValue -= (if (floatValue - step >= min) step else 0.0f)
     }
 
     override fun toString() : String {
-        return this._value.toString() + "em"
+        return floatValue.toString() + "em"
     }
 
 }

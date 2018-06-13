@@ -9,4 +9,6 @@ enum class TextAlignmentCase(val value : String) : CharSequence by value {
 
 }
 
-class TextAlignment(var _value: String = TextAlignmentCase.Justify.toString()) : UserSetting(TEXT_ALIGNMENT_REF, TEXT_ALIGNMENT_NAME, _value)
+class TextAlignment(override var _value: Any = TextAlignmentCase.Justify.toString()) : UserSetting(TEXT_ALIGNMENT_REF, TEXT_ALIGNMENT_NAME, _value.toString()) {
+    override fun toString() = _value.toString()
+}

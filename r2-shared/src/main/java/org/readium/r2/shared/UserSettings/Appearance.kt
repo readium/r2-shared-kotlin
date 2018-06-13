@@ -8,4 +8,6 @@ enum class AppearanceCase(val value: String) : CharSequence by value {
     override fun toString() = this.value
 }
 
-class Appearance(var _value: String = AppearanceCase.Default.toString()) : UserSetting(APPEARANCE_REF, APPEARANCE_NAME, _value)
+class Appearance(override var _value: Any = AppearanceCase.Default.toString()) : UserSetting(APPEARANCE_REF, APPEARANCE_NAME, _value.toString()) {
+    override fun toString() = (_value as AppearanceCase).toString()
+}

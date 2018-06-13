@@ -47,7 +47,7 @@ class TocElement(val link: Link, val children: List<TocElement>) : JSONable {
 
 }
 
-class Publication : Serializable {
+class Publication() : Serializable {
 
     private val TAG = this::class.java.simpleName
 
@@ -79,10 +79,10 @@ class Publication : Serializable {
     var coverLink: Link?  = null
         get() = linkWithRel("cover")
 
-    var userSettings = UserSettings()
+    lateinit var userSettings: UserSettings
 
-    constructor(sharedPreferences: SharedPreferences) {
-
+    constructor(sharedPreferences: SharedPreferences) : this() {
+        userSettings = UserSettings(sharedPreferences)
     }
 
     fun baseUrl() : URL? {

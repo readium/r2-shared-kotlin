@@ -28,25 +28,16 @@ const val LETTER_SPACING_NAME = "--USER__$LETTER_SPACING_REF"
 const val PAGE_MARGINS_NAME = "--USER__$PAGE_MARGINS_REF"
 
 
-open class UserSetting(var ref: String, var name: String, var value: String)
+abstract class UserSetting(var ref: String, var name: String, var value: String) {
+    abstract var _value: Any
+    abstract override fun toString(): String
+}
 
-class UserSettings() {
+class UserSettings(preferences: SharedPreferences) {
 
     var userSettings: MutableList<UserSetting> = mutableListOf()
-/*
-    var appearance: Appearance = Appearance()
-    var columnCount: ColumnCount = ColumnCount()
-    var fontFamily: FontFamily = FontFamily()
-    var fontOverride: FontOverride = FontOverride()
-    var fontSize: FontSize = FontSize()
-    var letterSpacing: LetterSpacing = LetterSpacing()
-    var pageMargins: PageMargins = PageMargins()
-    var publisherDefault: PublisherDefault = PublisherDefault()
-    var scroll: Scroll = Scroll()
-    var textAlignment: TextAlignment = TextAlignment()
-    var wordSpacing: WordSpacing = WordSpacing()
-*/
-    constructor(preferences: SharedPreferences) : this(){
+
+    init {
         userSettings.add(Appearance(preferences.getString(APPEARANCE_REF, AppearanceCase.Default.toString())))
         userSettings.add(ColumnCount(preferences.getString(COLUMN_COUNT_REF, ColumnCountCase.Auto.toString())))
         userSettings.add(FontFamily(preferences.getString(FONT_FAMILY_REF, FontFamilyCase.Publisher.toString())))
@@ -60,7 +51,13 @@ class UserSettings() {
         userSettings.add(WordSpacing(preferences.getFloat(WORD_SPACING_REF, 0.0f)))
     }
 
-    private inline fun <reified UserSettingType : UserSetting>getByType(type: KClass<UserSettingType>) = userSettings.filterIsInstance<UserSettingType>().firstOrNull()
+    private fun getByRef(ref: String) = userSettings.filter {
+        it.ref == ref
+    }.firstOrNull()
 
+    fun modify(ref: String, value: Any) {
+        val userSetting = getByRef(ref)
+        userSetting?._value = value
+    }
 }
 

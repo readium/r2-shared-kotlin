@@ -1,23 +1,21 @@
 package org.readium.r2.shared.UserSettings
 
-class WordSpacing(var _value: Float = min) : UserSetting(WORD_SPACING_REF, WORD_SPACING_NAME, _value.toString()){
+class WordSpacing(override var _value: Any = min) : UserSetting(WORD_SPACING_REF, WORD_SPACING_NAME, _value.toString()){
 
     companion object  {
         val max = 0.5f
         val min = 0.0f
         val step = 0.25f
+        var floatValue = 0.0f
     }
 
     fun increment(){
-        this._value -= (if (this._value + step <= max) step else 0.0f)
+        floatValue += (if (floatValue + step <= max) step else 0.0f)
     }
 
     fun decrement(){
-        this._value -= (if (this._value - step >= min) step else 0.0f)
+        floatValue -= (if (floatValue - step >= min) step else 0.0f)
     }
 
-    override fun toString() : String {
-        return this._value.toString() + "rem"
-    }
-
+    override fun toString() = this._value.toString() + "rem"
 }
