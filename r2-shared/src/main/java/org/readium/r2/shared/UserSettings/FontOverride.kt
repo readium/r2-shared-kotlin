@@ -8,6 +8,8 @@ enum class FontOverrideCase(val value: String) : CharSequence by value {
     override fun toString() = value
 }
 
-class FontOverride(override var _value: Any = FontOverrideCase.Off.toString()) : UserSetting(FONT_OVERRIDE_REF, FONT_OVERRIDE_NAME, _value.toString()) {
-    override fun toString() = (_value as FontOverrideCase).toString()
+class FontOverride(var _value: Any = FontOverrideCase.Off.toString()) : Switchable(FONT_OVERRIDE_REF, FONT_OVERRIDE_NAME, _value.toString()) {
+
+    override var values: Map<Boolean, String> = mapOf(true to FontOverrideCase.On.toString(), false to FontOverrideCase.Off.toString())
+
 }

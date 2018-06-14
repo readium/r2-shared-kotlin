@@ -8,6 +8,8 @@ enum class ScrollCase(val value: String) : CharSequence by value {
     override fun toString() = value
 }
 
-class Scroll(override var _value: Any = ScrollCase.Off.toString()) : UserSetting(SCROLL_REF, SCROLL_NAME, _value.toString()) {
-    override fun toString() = _value.toString()
+class Scroll(value: Any = ScrollCase.Off.toString()) : Switchable(SCROLL_REF, SCROLL_NAME, value.toString()) {
+
+    override val values: Map<Boolean, String> = mapOf(true to ScrollCase.On.toString(), false to ScrollCase.Off.toString())
+
 }
