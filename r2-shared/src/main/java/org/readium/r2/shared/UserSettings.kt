@@ -73,25 +73,6 @@ class UserSettings {
         it.ref == ref
     }.firstOrNull()!!
 
-    fun setUserSetting(ref: String, index:Int) {
-        val userSetting = getByRef(ref)
-        (userSetting as Enumeratable).set(index)
-    }
-
-    fun switch(ref: String) {
-        val userSetting = getByRef(ref)
-        (userSetting as Switchable).switch()
-    }
-
-    fun increment(ref: String) {
-        val userSetting = getByRef(ref)
-        (userSetting as Incrementable).increment()
-    }
-
-    fun decrement(ref: String) {
-        val userSetting = getByRef(ref)
-        (userSetting as Incrementable).decrement()
-    }
 
     fun getUserSetting(ref: String) = getByRef(ref).toString()
 }
