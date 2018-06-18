@@ -1,5 +1,7 @@
 package org.readium.r2.shared
 
+import java.io.Serializable
+
 sealed class UserSetting(var ref: String, var name: String) {
 
     private var value: String = ""
@@ -53,7 +55,7 @@ class Switchable(onValue: String, offValue: String, var on: Boolean,
     override fun toString() = values[on]!!
 }
 
-class UserSettings {
+class UserSettings : Serializable {
 
     val userSettings: MutableList<UserSetting> = mutableListOf()
 
