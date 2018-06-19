@@ -78,7 +78,7 @@ class Publication() : Serializable {
     var coverLink: Link?  = null
         get() = linkWithRel("cover")
 
-    var userSettings = UserSettings()
+    var userProperties = UserProperties()
 
     fun baseUrl() : URL? {
         val selfLink = linkWithRel("self")
