@@ -52,7 +52,7 @@ class Link : JSONable, Serializable {
         json.putOpt("href", href)
         if (rel.isNotEmpty())
             json.put("rel", getStringArray(rel))
-        json.putOpt("properties", properties)
+        json.putOpt("properties", properties.getJSON())
         if (height != 0)
             json.putOpt("height", height)
         if (width != 0)
