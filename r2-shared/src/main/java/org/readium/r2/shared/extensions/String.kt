@@ -35,6 +35,14 @@ fun String.addPrefix(prefix: CharSequence): String {
     return "$prefix$this"
 }
 
+/**
+ * Splits a [String] in two components, at the given delimiter.
+ */
+fun String.splitAt(delimiter: String): Pair<String, String?> {
+    val components = split(delimiter, limit = 2)
+    return Pair(components[0], components.getOrNull(1))
+}
+
 internal enum class HashAlgorithm(val key: String) {
     MD5("MD5"),
     SHA256("SHA-256")
