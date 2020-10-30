@@ -24,7 +24,7 @@ class ResourceInputStreamTest {
 
     @Test
     fun `stream can be read by chunks`() {
-        val resourceStream = ResourceInputStream(fetcher.get("/epub.epub"))
+        val resourceStream = ResourceInputStream(fetcher.get("/epub.epub"), autocloseResource = true)
         val outputStream = ByteArrayOutputStream(fileContent.size)
         resourceStream.copyTo(outputStream, bufferSize = bufferSize)
         assertTrue(fileContent.contentEquals(outputStream.toByteArray()))

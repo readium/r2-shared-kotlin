@@ -14,6 +14,11 @@ package org.readium.r2.shared
 @Target(AnnotationTarget.CLASS, AnnotationTarget.FUNCTION, AnnotationTarget.TYPEALIAS)
 annotation class PdfSupport
 
+@RequiresOptIn(message = "The new Audiobook navigator is still experimental. The API may be changed in the future without notice.")
+@Retention(AnnotationRetention.BINARY)
+@Target(AnnotationTarget.CLASS, AnnotationTarget.FUNCTION, AnnotationTarget.TYPEALIAS, AnnotationTarget.PROPERTY)
+annotation class AudioSupport
+
 @RequiresOptIn(message = "Usage of Fragment in the Navigator is still experimental. The API may be changed in the future without notice.")
 @Retention(AnnotationRetention.BINARY)
 @Target(AnnotationTarget.CLASS, AnnotationTarget.FUNCTION)
