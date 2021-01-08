@@ -9,7 +9,6 @@
 
 package org.readium.r2.shared.publication
 
-import android.content.Context
 import android.net.Uri
 import androidx.annotation.StringRes
 import kotlinx.coroutines.GlobalScope
@@ -26,12 +25,10 @@ import org.readium.r2.shared.extensions.toUrlOrNull
 import org.readium.r2.shared.fetcher.EmptyFetcher
 import org.readium.r2.shared.fetcher.Fetcher
 import org.readium.r2.shared.fetcher.Resource
-import org.readium.r2.shared.format.MediaType
+import org.readium.r2.shared.util.mediatype.MediaType
 import org.readium.r2.shared.publication.epub.listOfAudioClips
 import org.readium.r2.shared.publication.epub.listOfVideoClips
-import org.readium.r2.shared.publication.services.CoverService
-import org.readium.r2.shared.publication.services.PositionsService
-import org.readium.r2.shared.publication.services.positions
+import org.readium.r2.shared.publication.services.*
 import timber.log.Timber
 import java.net.URL
 import java.net.URLEncoder
@@ -333,15 +330,19 @@ class Publication(
      *
      * Provides helpers to manipulate the list of services of a [Publication].
      */
-    class ServicesBuilder(internal var serviceFactories: MutableMap<String, ServiceFactory>) {
+    class ServicesBuilder private constructor(private var serviceFactories: MutableMap<String, ServiceFactory>) {
 
         @Suppress("UNCHECKED_CAST")
         constructor(
-            positions: ServiceFactory? = null,
-            cover: ServiceFactory? = null
+            contentProtection: ServiceFactory? = null,
+            cover: ServiceFactory? = null,
+            locator: ServiceFactory? = { DefaultLocatorService(it.manifest.readingOrder) },
+            positions: ServiceFactory? = null
         ) : this(mapOf(
-            PositionsService::class.java.simpleName to positions,
-            CoverService::class.java.simpleName to cover
+            ContentProtectionService::class.java.simpleName to contentProtection,
+            CoverService::class.java.simpleName to cover,
+            LocatorService::class.java.simpleName to locator,
+            PositionsService::class.java.simpleName to positions
         ).filterValues { it != null }.toMutableMap() as MutableMap<String, ServiceFactory>)
 
         /** Builds the actual list of publication services to use in a Publication. */
@@ -461,8 +462,8 @@ class Publication(
     @Deprecated("Renamed to [listOfVideoClips]", ReplaceWith("listOfVideoClips"))
     val listOfVideos: List<Link> = listOfVideoClips
 
-    @Deprecated("Renamed to [resourceWithHref]", ReplaceWith("resourceWithHref(href)"))
-    fun resource(href: String): Link? = resourceWithHref(href)
+    @Deprecated("Renamed to [linkWithHref]", ReplaceWith("linkWithHref(href)"))
+    fun resource(href: String): Link? = linkWithHref(href)
 
     @Deprecated("Refactored as a property", ReplaceWith("baseUrl"))
     fun baseUrl(): URL? = baseUrl

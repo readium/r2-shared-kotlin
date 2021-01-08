@@ -6,11 +6,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.0.0-beta.1]
+
+### Added
+
+* `PublicationAsset` is a new interface which can be used to open a publication from various medium, such as a file, a remote URL or a custom source.
+  * `File` was replaced by `FileAsset`, which implements `PublicationAsset`.
+
 ### Changed
 
 * Upgraded to Kotlin 1.4.10.
-* `ContentLayout` is deprecated, use `publication.metadata.effectiveReadingProgression` to determine the reading
-progression of a publication instead.
+* `Format` got merged into `MediaType`, to simplify the media type APIs.
+  * You can use `MediaType.of()` to sniff the type of a file or bytes.
+      * All the `MediaType.of()` functions are now suspending to prevent deadlocks with `runBlocking`.
+  * `MediaType` has now optional `name` and `fileExtension` properties.
+  * Some publication formats can be represented by several media type aliases. Using `mediaType.canonicalMediaType()` will give you the canonical media type to use, for example when persisting the file type in a database. All Readium APIs are already returning canonical media types, so it only matters if you create a `MediaType` yourself from its string representation.
+* `ContentLayout` is deprecated, use `publication.metadata.effectiveReadingProgression` to determine the reading progression of a publication instead.
 
 
 ## [2.0.0-alpha.2]
@@ -47,7 +58,7 @@ progression of a publication instead.
 * The new [Format API](https://github.com/readium/architecture/blob/master/proposals/001-format-api.md) simplifies the detection of file formats, including known publication formats such as EPUB and PDF.
   * [A format can be "sniffed"](https://github.com/readium/architecture/blob/master/proposals/001-format-api.md#sniffing-the-format-of-raw-bytes) from files, raw bytes or even HTTP responses.
   * Reading apps are welcome to [extend the API with custom formats](https://github.com/readium/architecture/blob/master/proposals/001-format-api.md#supporting-a-custom-format).
-  * Using `Link.mediaType?.matches()` is now recommended [to safely check the type of a resource](https://github.com/readium/architecture/blob/master/proposals/001-format-api.md#mediatype-class).
+  * Using `Link.mediaType.matches()` is now recommended [to safely check the type of a resource](https://github.com/readium/architecture/blob/master/proposals/001-format-api.md#mediatype-class).
   * [More details about the Kotlin implementation can be found in the pull request.](https://github.com/readium/r2-shared-kotlin/pull/100)
 * In `Publication` shared models:
   * Support for the [Presentation Hints](https://readium.org/webpub-manifest/extensions/presentation.html) extension.
@@ -75,4 +86,5 @@ progression of a publication instead.
 [unreleased]: https://github.com/readium/r2-shared-kotlin/compare/master...HEAD
 [2.0.0-alpha.1]: https://github.com/readium/r2-shared-kotlin/compare/1.1.6...2.0.0-alpha.1
 [2.0.0-alpha.2]: https://github.com/readium/r2-shared-kotlin/compare/2.0.0-alpha.1...2.0.0-alpha.2
+[2.0.0-beta.1]: https://github.com/readium/r2-shared-kotlin/compare/2.0.0-alpha.2...2.0.0-beta.1
 

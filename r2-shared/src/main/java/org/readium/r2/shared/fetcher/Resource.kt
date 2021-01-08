@@ -20,6 +20,7 @@ import org.readium.r2.shared.parser.xml.ElementNode
 import org.readium.r2.shared.parser.xml.XmlParser
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.util.Try
+import org.readium.r2.shared.util.flatMap
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.nio.charset.Charset
@@ -82,7 +83,7 @@ interface Resource {
      */
     suspend fun readAsString(charset: Charset? = null): ResourceTry<String> =
         read().mapCatching {
-            String(it, charset = charset ?: link().mediaType?.charset ?: Charsets.UTF_8)
+            String(it, charset = charset ?: link().mediaType.charset ?: Charsets.UTF_8)
         }
 
     /**

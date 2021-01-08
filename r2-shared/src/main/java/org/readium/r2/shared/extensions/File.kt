@@ -9,6 +9,7 @@
 
 package org.readium.r2.shared.extensions
 
+import org.readium.r2.shared.util.mediatype.MediaType
 import timber.log.Timber
 import java.io.File
 import java.io.FileInputStream
@@ -26,7 +27,7 @@ fun File.md5(): String? =
         val bufferSize = 32000
         val buffer = ByteArray(bufferSize)
         FileInputStream(this).use {
-            var bytes = 0
+            var bytes: Int
             do {
                 bytes = it.read(buffer, 0, bufferSize)
                 if (bytes > 0) {
@@ -58,3 +59,11 @@ fun File.isParentOf(other: File): Boolean {
     }
     return false
 }
+
+/**
+ * Sniffs the media type of the file.
+ *
+ * If unknown, fallback on `MediaType.BINARY`.
+ */
+suspend fun File.mediaType(mediaTypeHint: String? = null): MediaType =
+    MediaType.ofFile(this, mediaType = mediaTypeHint) ?: MediaType.BINARY
