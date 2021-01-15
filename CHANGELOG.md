@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## Added
+
+* `Publication.Service.Context` now holds a reference to the parent `Publication`. This can be used to access other services from a given `Publication.Service` implementation.
+
+
 ## [2.0.0-beta.1]
 
 ### Added
