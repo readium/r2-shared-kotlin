@@ -348,7 +348,7 @@ class Publication(
         constructor(
             contentProtection: ServiceFactory? = null,
             cover: ServiceFactory? = null,
-            locator: ServiceFactory? = { DefaultLocatorService(it.manifest.readingOrder) },
+            locator: ServiceFactory? = { DefaultLocatorService(it.manifest.readingOrder, it.publication) },
             positions: ServiceFactory? = null
         ) : this(mapOf(
             ContentProtectionService::class.java.simpleName to contentProtection,
