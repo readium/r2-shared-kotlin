@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+* [#136](https://github.com/readium/r2-shared-kotlin/issues/136) `null` values in JSON string properties are now properly parsed as nullable types, instead of the string `"null"`
+
+
 ## [2.0.0-beta.1]
 
 ### Added
