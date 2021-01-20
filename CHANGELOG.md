@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+* [#129](https://github.com/readium/r2-shared-kotlin/issues/129) Improve performances when reading deflated ZIP resources.
+  * For example, it helps with large image-based FXL EPUB which used to be slow to render.
+
+
 ## [2.0.0-beta.1]
 
 ### Added
