@@ -59,6 +59,7 @@ class MetadataTest {
                 description = "Description",
                 duration = 4.24,
                 numberOfPages = 240,
+                belongsTo = mapOf("schema:Periodical" to listOf(Contributor(name = "Periodical"))),
                 belongsToCollections = listOf(Contributor(name = "Collection")),
                 belongsToSeries = listOf(Contributor(name = "Series")),
                 otherMetadata = mapOf(
@@ -95,7 +96,8 @@ class MetadataTest {
                 "numberOfPages": 240,
                 "belongsTo": {
                     "collection": "Collection",
-                    "series": "Series"
+                    "series": "Series",
+                    "schema:Periodical": "Periodical"
                 },
                 "other-metadata1": "value",
                 "other-metadata2": [42]
@@ -182,7 +184,8 @@ class MetadataTest {
                 "numberOfPages": 240,
                 "belongsTo": {
                     "collection": [{"name": {"und": "Collection"}}],
-                    "series": [{"name": {"und": "Series"}}]
+                    "series": [{"name": {"und": "Series"}}],
+                    "schema:Periodical": [{"name": {"und": "Periodical"}}]
                 },
                 "other-metadata1": "value",
                 "other-metadata2": [42]
@@ -223,6 +226,7 @@ class MetadataTest {
                 description = "Description",
                 duration = 4.24,
                 numberOfPages = 240,
+                belongsTo = mapOf("schema:Periodical" to listOf(Contributor(name = "Periodical"))),
                 belongsToCollections = listOf(Contributor(name = "Collection")),
                 belongsToSeries = listOf(Contributor(name = "Series")),
                 otherMetadata = mapOf(
