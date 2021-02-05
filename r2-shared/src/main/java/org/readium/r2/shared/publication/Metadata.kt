@@ -267,13 +267,19 @@ data class Metadata(
             val duration = json.optPositiveDouble("duration", remove = true)
             val numberOfPages = json.optPositiveInt("numberOfPages", remove = true)
 
-            val belongsTo = (
+            val belongsToJson = (
                 json.remove("belongsTo") as? JSONObject ?:
-                json.remove("belongs_to") as? JSONObject
+                json.remove("belongs_to") as? JSONObject ?:
+                JSONObject()
             )
-                ?.toMap()
-                ?.mapValues { Collection.fromJSONArray(it.value, normalizeHref, warnings) }
-                ?: emptyMap()
+
+            val belongsTo = mutableMapOf<String, List<Collection>>()
+            for (key in belongsToJson.keys()) {
+                if (!belongsToJson.isNull(key)) {
+                    val value = belongsToJson.get(key)
+                    belongsTo[key] = Collection.fromJSONArray(value, normalizeHref, warnings)
+                }
+            }
 
             return Metadata(
                 identifier = identifier,
@@ -302,7 +308,7 @@ data class Metadata(
                 description = description,
                 duration = duration,
                 numberOfPages = numberOfPages,
-                belongsTo = belongsTo,
+                belongsTo = belongsTo.toMap(),
                 otherMetadata = json.toMap()
             )
         }

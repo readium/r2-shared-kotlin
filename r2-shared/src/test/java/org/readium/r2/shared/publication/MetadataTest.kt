@@ -59,7 +59,13 @@ class MetadataTest {
                 description = "Description",
                 duration = 4.24,
                 numberOfPages = 240,
-                belongsTo = mapOf("schema:Periodical" to listOf(Contributor(name = "Periodical"))),
+                belongsTo = mapOf(
+                    "schema:Periodical" to listOf(Contributor(name = "Periodical")),
+                    "schema:Newspaper" to listOf(
+                        Contributor(name = "Newspaper 1"),
+                        Contributor(name = "Newspaper 2")
+                    )
+                ),
                 belongsToCollections = listOf(Contributor(name = "Collection")),
                 belongsToSeries = listOf(Contributor(name = "Series")),
                 otherMetadata = mapOf(
@@ -97,7 +103,8 @@ class MetadataTest {
                 "belongsTo": {
                     "collection": "Collection",
                     "series": "Series",
-                    "schema:Periodical": "Periodical"
+                    "schema:Periodical": "Periodical",
+                    "schema:Newspaper": [ "Newspaper 1", "Newspaper 2" ]
                 },
                 "other-metadata1": "value",
                 "other-metadata2": [42]
