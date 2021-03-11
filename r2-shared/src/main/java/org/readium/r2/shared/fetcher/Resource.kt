@@ -133,10 +133,9 @@ interface Resource {
          * Creates a cached resource wrapping this resource.
          */
         @Deprecated("If you were caching a TransformingResource, build it with cacheBytes set to true." +
-                "Otherwise, please report your use case.")
-        fun Resource.cached(): Resource =
-            if (this is CachingResource) this
-            else CachingResource(this)
+                "Otherwise, please report your use case.",
+            level = DeprecationLevel.ERROR)
+        fun Resource.cached(): Resource = this
     }
 
     /**
@@ -247,7 +246,8 @@ abstract class ProxyResource(protected val resource: Resource) : Resource {
  * So this is not appropriate for large resources.
  */
 @Deprecated("If you were caching a TransformingResource, build it with cacheBytes set to true." +
-        "Otherwise, please report your use case.")
+        "Otherwise, please report your use case.",
+    level = DeprecationLevel.ERROR)
 class CachingResource(private val resource: Resource) : Resource {
 
     private lateinit var _link: Link
