@@ -14,6 +14,7 @@ import org.readium.r2.shared.util.http.HttpRequest.Method
 import org.readium.r2.shared.util.mediatype.MediaType
 import org.readium.r2.shared.util.mediatype.sniffMediaType
 import timber.log.Timber
+import java.io.BufferedInputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.time.ExperimentalTime
@@ -21,22 +22,12 @@ import kotlin.time.ExperimentalTime
 /**
  * An implementation of [HttpClient] using the native [HttpURLConnection].
  */
-@OptIn(ExperimentalTime::class)
 class DefaultHttpClient : HttpClient {
 
     @Suppress("BlockingMethodInNonBlockingContext") // We are using Dispatchers.IO but we still get this warning...
     override suspend fun fetch(request: HttpRequest): HttpTry<HttpFetchResponse> = withContext(Dispatchers.IO) {
         try {
-            val url = URL(request.url)
-
-            val connection = (url.openConnection() as HttpURLConnection)
-            connection.requestMethod = request.method.name
-            if (request.readTimeout != null) {
-                connection.readTimeout = request.readTimeout.toLongMilliseconds().toInt()
-            }
-            if (request.connectTimeout != null) {
-                connection.connectTimeout = request.connectTimeout.toLongMilliseconds().toInt()
-            }
+            val connection = request.toHttpURLConnection()
 
             try {
                 val statusCode = connection.responseCode
@@ -76,8 +67,98 @@ class DefaultHttpClient : HttpClient {
         }
     }
 
-    override suspend fun progressiveDownload(request: HttpRequest, range: LongRange?, receiveResponse: ((HttpResponse) -> Void)?, consumeData: (chunk: ByteArray, progress: Double?) -> Unit): HttpTry<HttpResponse> {
-        TODO("Not yet implemented")
+    @Suppress("BlockingMethodInNonBlockingContext") // We are using Dispatchers.IO but we still get this warning...
+    override suspend fun progressiveDownload(
+        request: HttpRequest,
+        range: LongRange?,
+        receiveResponse: ((HttpResponse) -> Void)?,
+        consumeData: (chunk: ByteArray, progress: Double?) -> Unit
+    ): HttpTry<HttpResponse> = withContext(Dispatchers.IO) {
+        try {
+            val headers = mutableMapOf<String, String>()
+            if (range != null) {
+                headers["Range"] = "bytes=${range.first}-${range.last}"
+            }
+
+            val connection = request.toHttpURLConnection(additionalHeaders = headers)
+
+            try {
+                val statusCode = connection.responseCode
+                HttpException.Kind.ofStatusCode(statusCode)?.let { kind ->
+                    // Reads the full body, since it might contain an error representation such as
+                    // JSON Problem Details or OPDS Authentication Document
+                    val body = connection.inputStream.use { it.readBytes() }
+                    val mediaType = connection.sniffMediaType(bytes = { body })
+                    throw HttpException(kind, mediaType, body)
+                }
+
+                val response = HttpResponse(
+                    headers = connection.headerFields,
+                    mediaType = connection.sniffMediaType() ?: MediaType.BINARY,
+                )
+                receiveResponse?.invoke(response)
+
+                if (range != null && !response.acceptsByteRanges) {
+                    val e = Exception("Progressive download using ranges requires the remote HTTP server to support byte range requests: ${request.url}")
+                    Timber.e(e)
+                    throw e
+                }
+
+                var readLength = 0L
+                val expectedLength = (
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                        connection.contentLengthLong.toDouble()
+                    } else {
+                        connection.contentLength.toDouble()
+                    }
+                ).takeIf { it > 0 }
+
+                BufferedInputStream(connection.inputStream).use { input ->
+                    val chunk = ByteArray(2048)
+                    var n: Int
+                    while (-1 != input.read(chunk).also { n = it }) {
+                        // Make sure the request was not cancelled.
+                        ensureActive()
+
+                        readLength += n
+                        val progress = expectedLength?.let { readLength / it }
+                        consumeData(chunk, progress)
+                    }
+                }
+
+                Try.success(response)
+
+            } finally {
+                connection.disconnect()
+            }
+
+        } catch (e: Exception) {
+            Timber.e(e)
+            Try.failure(HttpException.wrap(e))
+        }
     }
 
+}
+
+@OptIn(ExperimentalTime::class)
+internal fun HttpRequest.toHttpURLConnection(additionalHeaders: Map<String, String> = mapOf()): HttpURLConnection {
+    val url = URL(url)
+    val connection = (url.openConnection() as HttpURLConnection)
+    connection.requestMethod = method.name
+    if (readTimeout != null) {
+        connection.readTimeout = readTimeout.toLongMilliseconds().toInt()
+    }
+    if (connectTimeout != null) {
+        connection.connectTimeout = connectTimeout.toLongMilliseconds().toInt()
+    }
+    connection.allowUserInteraction = allowUserInteraction
+
+    for ((k, v) in headers) {
+        connection.setRequestProperty(k, v)
+    }
+    for ((k, v) in additionalHeaders) {
+        connection.setRequestProperty(k, v)
+    }
+
+    return connection
 }
