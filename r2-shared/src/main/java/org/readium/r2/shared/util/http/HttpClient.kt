@@ -56,15 +56,22 @@ data class HttpFetchResponse(
  *        on `application/octet-stream`.
  */
 data class HttpResponse(
-    val headers: Map<String, String>,
+    val headers: Map<String, List<String>>,
     val mediaType: MediaType,
 ) {
 
     /**
-     * Finds the value of the first header matching the given name.
+     * Finds the first value of the first header matching the given name.
      * In keeping with the HTTP RFC, HTTP header field names are case-insensitive.
      */
-    fun valueForHeader(name: String): String? {
+    fun valueForHeader(name: String): String? =
+        valuesForHeader(name).firstOrNull()
+
+    /**
+     * Finds all the values of the first header matching the given name.
+     * In keeping with the HTTP RFC, HTTP header field names are case-insensitive.
+     */
+    fun valuesForHeader(name: String): List<String> {
         @Suppress("NAME_SHADOWING")
         val name = name.toLowerCase(Locale.ROOT)
         for ((n, v) in headers) {
@@ -72,7 +79,7 @@ data class HttpResponse(
                 return v
             }
         }
-        return null
+        return emptyList()
     }
 
     /**

@@ -1,5 +1,6 @@
 package org.readium.r2.shared.util.http
 
+import android.net.Uri
 import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
 
@@ -35,14 +36,36 @@ data class HttpRequest(
             Builder().apply(build).build()
     }
 
-    data class Builder(
-        var url: String = "",
+    class Builder(
+        url: String = "",
         var method: Method = Method.GET,
         var headers: MutableMap<String, String> = mutableMapOf(),
         var connectTimeout: Duration? = null,
         var readTimeout: Duration? = null,
         var allowUserInteraction: Boolean = false,
     ) {
+
+        var url: String
+            get() = uriBuilder.build().toString()
+            set(value) { uriBuilder = Uri.parse(value).buildUpon() }
+
+        init {
+            this.url = url
+        }
+
+        private var uriBuilder: Uri.Builder = Uri.Builder()
+
+        fun appendQueryParameter(key: String, value: String?) {
+            if (value != null) {
+                uriBuilder.appendQueryParameter(key, value)
+            }
+        }
+
+        fun appendQueryParameters(params: Map<String, String?>) {
+            for ((key, value) in params) {
+                appendQueryParameter(key, value)
+            }
+        }
 
         fun setHeader(key: String, value: String) {
             headers[key] = value

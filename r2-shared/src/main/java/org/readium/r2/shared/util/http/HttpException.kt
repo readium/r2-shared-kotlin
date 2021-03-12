@@ -11,8 +11,13 @@ import org.json.JSONObject
 import org.readium.r2.shared.R
 import org.readium.r2.shared.UserException
 import org.readium.r2.shared.extensions.tryOrLog
+import org.readium.r2.shared.fetcher.Resource
 import org.readium.r2.shared.util.Try
 import org.readium.r2.shared.util.mediatype.MediaType
+import java.io.IOException
+import java.net.MalformedURLException
+import java.net.SocketTimeoutException
+import java.util.concurrent.CancellationException
 
 typealias HttpTry<SuccessT> = Try<SuccessT, HttpException>
 
@@ -96,6 +101,21 @@ class HttpException(
             Kind.ofStatusCode(statusCode)?.let { kind ->
                 HttpException(kind, mediaType, body)
             }
+
+        /**
+         * Creates an HTTP error from a generic exception.
+         */
+        fun wrap(cause: Throwable): HttpException {
+            val kind = when (cause) {
+                is HttpException -> return cause
+                is MalformedURLException -> Kind.MalformedRequest
+                is CancellationException -> Kind.Cancelled
+                is SocketTimeoutException -> Kind.Timeout
+                else -> Kind.Other
+            }
+
+            return HttpException(kind = kind, cause = cause)
+        }
 
     }
 
