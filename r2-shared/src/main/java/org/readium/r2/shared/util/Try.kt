@@ -48,6 +48,16 @@ class Try<out Success, out Failure: Throwable> private constructor(private val s
             failure(exceptionOrNull()!!)
 
     /**
+     * Returns the encapsulated result of the given transform function applied to the encapsulated failure
+     * if this instance represents failure or the original encapsulated success value if it is a success.
+     */
+    inline fun <F : Throwable> mapFailure(transform: (value: Failure) -> F): Try<Success, F> =
+        if (isSuccess)
+            success(getOrThrow())
+        else
+            failure(transform(exceptionOrNull()!!))
+
+    /**
      * Returns the result of [onSuccess] for the encapsulated value if this instance represents success or
      * the result of [onFailure] function for the encapsulated [Throwable] exception if it is failure.
      */

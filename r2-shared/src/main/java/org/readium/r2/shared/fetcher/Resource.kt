@@ -171,11 +171,12 @@ interface Resource {
     sealed class Exception(@StringRes userMessageId: Int, cause: Throwable? = null) : UserException(userMessageId, cause = cause) {
 
         /** Equivalent to a 400 HTTP error. */
-        class BadRequest(val parameters: Map<String, String>, cause: Throwable? = null)
+        class BadRequest(val parameters: Map<String, String> = emptyMap(), cause: Throwable? = null)
             : Exception(R.string.r2_shared_resource_exception_bad_request, cause)
 
         /** Equivalent to a 404 HTTP error. */
-        object NotFound : Exception(R.string.r2_shared_resource_exception_not_found)
+        class NotFound(cause: Throwable? = null) :
+            Exception(R.string.r2_shared_resource_exception_not_found, cause)
 
         /**
          * Equivalent to a 403 HTTP error.
@@ -183,7 +184,8 @@ interface Resource {
          * This can be returned when trying to read a resource protected with a DRM that is not
          * unlocked.
          */
-        object Forbidden : Exception(R.string.r2_shared_resource_exception_forbidden)
+        class Forbidden(cause: Throwable? = null)
+            : Exception(R.string.r2_shared_resource_exception_forbidden, cause)
 
         /**
          * Equivalent to a 503 HTTP error.
@@ -191,7 +193,8 @@ interface Resource {
          * Used when the source can't be reached, e.g. no Internet connection, or an issue with the
          * file system. Usually this is a temporary error.
          */
-        object Unavailable : Exception(R.string.r2_shared_resource_exception_unavailable)
+        class Unavailable(cause: Throwable? = null)
+            : Exception(R.string.r2_shared_resource_exception_unavailable, cause)
 
         /**
          * Equivalent to a 507 HTTP error.
