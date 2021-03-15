@@ -72,8 +72,35 @@ interface Resource {
      *
      * When [range] is null, the whole content is returned. Out-of-range indexes are clamped to the
      * available length automatically.
+     *
+     * Types implementing [Resource] MUST override either this function or read(LongRange?,
+     * (ByteArray) -> Void.
      */
-    suspend fun read(range: LongRange? = null): ResourceTry<ByteArray>
+    suspend fun read(range: LongRange? = null): ResourceTry<ByteArray> =
+        try {
+            var data = ByteArray(0)
+            read(range) { data += it }
+                .map { data }
+        } catch (e: Throwable) {
+            ResourceTry.failure(Exception.wrap(e))
+        }
+
+    /**
+     * Reads the bytes at the given range asynchronously.
+     *
+     * The [consume] callback will be called with each chunk of read data. Callers are responsible
+     * to accumulate the total data.
+     *
+     * Types implementing [Resource] MUST override either this function or read(LongRange?).
+     */
+    suspend fun read(range: LongRange? = null, consume: (ByteArray) -> Unit): ResourceTry<Unit> =
+        try {
+            read(range)
+                .onSuccess { consume(it) }
+                .map { }
+        } catch (e: Throwable) {
+            ResourceTry.failure(Exception.wrap(e))
+        }
 
     /**
      * Reads the full content as a [String].
