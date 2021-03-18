@@ -17,7 +17,6 @@ import org.readium.r2.shared.util.http.HttpRequest
 import org.readium.r2.shared.util.http.HttpRequest.Method
 import org.readium.r2.shared.util.http.HttpResponse
 import timber.log.Timber
-import java.lang.IllegalArgumentException
 
 /**
  * Fetches remote resources through HTTP.
@@ -74,6 +73,7 @@ class HttpFetcher(
             client
                 .progressiveDownload(
                     request = HttpRequest(url),
+                    range = range,
                     consumeData = { data, _ -> consume(data) }
                 )
                 .map { }

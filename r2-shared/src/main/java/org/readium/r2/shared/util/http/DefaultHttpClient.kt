@@ -26,6 +26,8 @@ class DefaultHttpClient : HttpClient {
 
     @Suppress("BlockingMethodInNonBlockingContext") // We are using Dispatchers.IO but we still get this warning...
     override suspend fun fetch(request: HttpRequest): HttpTry<HttpFetchResponse> = withContext(Dispatchers.IO) {
+        Timber.i("Fetch (${request.method.name}) ${request.url}, headers: ${request.headers}")
+
         try {
             val connection = request.toHttpURLConnection()
 
@@ -51,7 +53,7 @@ class DefaultHttpClient : HttpClient {
 
                 Try.success(HttpFetchResponse(
                     response = HttpResponse(
-                        headers = connection.headerFields,
+                        headers = connection.safeHeaders,
                         mediaType = mediaType ?: MediaType.BINARY,
                     ),
                     body = body,
@@ -62,7 +64,7 @@ class DefaultHttpClient : HttpClient {
             }
 
         } catch (e: Exception) {
-            Timber.e(e)
+            Timber.e(e, "Failed to fetch ${request.url}")
             Try.failure(HttpException.wrap(e))
         }
     }
@@ -75,12 +77,16 @@ class DefaultHttpClient : HttpClient {
         consumeData: (chunk: ByteArray, progress: Double?) -> Unit
     ): HttpTry<HttpResponse> = withContext(Dispatchers.IO) {
         try {
-            val headers = mutableMapOf<String, String>()
+            @Suppress("NAME_SHADOWING") var request = request
             if (range != null) {
-                headers["Range"] = "bytes=${range.first}-${range.last}"
+                request = request.buildUpon()
+                    .setHeader("Range", "bytes=${range.first}-${range.last}")
+                    .build()
             }
 
-            val connection = request.toHttpURLConnection(additionalHeaders = headers)
+            Timber.i("Download (progressive) ${request.url}, headers: ${request.headers}")
+
+            val connection = request.toHttpURLConnection()
 
             try {
                 val statusCode = connection.responseCode
@@ -93,7 +99,7 @@ class DefaultHttpClient : HttpClient {
                 }
 
                 val response = HttpResponse(
-                    headers = connection.headerFields,
+                    headers = connection.safeHeaders,
                     mediaType = connection.sniffMediaType() ?: MediaType.BINARY,
                 )
                 receiveResponse?.invoke(response)
@@ -122,7 +128,7 @@ class DefaultHttpClient : HttpClient {
 
                         readLength += n
                         val progress = expectedLength?.let { readLength / it }
-                        consumeData(chunk, progress)
+                        consumeData(chunk.copyOfRange(0, n), progress)
                     }
                 }
 
@@ -133,7 +139,7 @@ class DefaultHttpClient : HttpClient {
             }
 
         } catch (e: Exception) {
-            Timber.e(e)
+            Timber.e(e, "Failed to download ${request.url}")
             Try.failure(HttpException.wrap(e))
         }
     }
@@ -141,7 +147,7 @@ class DefaultHttpClient : HttpClient {
 }
 
 @OptIn(ExperimentalTime::class)
-internal fun HttpRequest.toHttpURLConnection(additionalHeaders: Map<String, String> = mapOf()): HttpURLConnection {
+private fun HttpRequest.toHttpURLConnection(): HttpURLConnection {
     val url = URL(url)
     val connection = (url.openConnection() as HttpURLConnection)
     connection.requestMethod = method.name
@@ -156,9 +162,13 @@ internal fun HttpRequest.toHttpURLConnection(additionalHeaders: Map<String, Stri
     for ((k, v) in headers) {
         connection.setRequestProperty(k, v)
     }
-    for ((k, v) in additionalHeaders) {
-        connection.setRequestProperty(k, v)
-    }
 
     return connection
 }
+
+private val HttpURLConnection.safeHeaders: Map<String, List<String>> get() =
+    headerFields.filterNot { (key, value) ->
+        // In practice, I found that some header names are null despite the force unwrapping.
+        @Suppress("SENSELESS_COMPARISON")
+        key == null || value == null
+    }

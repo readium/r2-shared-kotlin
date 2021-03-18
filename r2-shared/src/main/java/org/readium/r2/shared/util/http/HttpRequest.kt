@@ -31,6 +31,15 @@ data class HttpRequest(
         GET, HEAD, POST, PUT;
     }
 
+    fun buildUpon() = Builder(
+        url = url,
+        method = method,
+        headers = headers.toMutableMap(),
+        connectTimeout = connectTimeout,
+        readTimeout = readTimeout,
+        allowUserInteraction = allowUserInteraction
+    )
+
     companion object {
         operator fun invoke(build: Builder.() -> Unit): HttpRequest =
             Builder().apply(build).build()
@@ -49,26 +58,25 @@ data class HttpRequest(
             get() = uriBuilder.build().toString()
             set(value) { uriBuilder = Uri.parse(value).buildUpon() }
 
-        init {
-            this.url = url
-        }
+        private var uriBuilder: Uri.Builder = Uri.parse(url).buildUpon()
 
-        private var uriBuilder: Uri.Builder = Uri.Builder()
-
-        fun appendQueryParameter(key: String, value: String?) {
+        fun appendQueryParameter(key: String, value: String?): Builder {
             if (value != null) {
                 uriBuilder.appendQueryParameter(key, value)
             }
+            return this
         }
 
-        fun appendQueryParameters(params: Map<String, String?>) {
+        fun appendQueryParameters(params: Map<String, String?>): Builder {
             for ((key, value) in params) {
                 appendQueryParameter(key, value)
             }
+            return this
         }
 
-        fun setHeader(key: String, value: String) {
+        fun setHeader(key: String, value: String): Builder {
             headers[key] = value
+            return this
         }
 
         fun build(): HttpRequest = HttpRequest(

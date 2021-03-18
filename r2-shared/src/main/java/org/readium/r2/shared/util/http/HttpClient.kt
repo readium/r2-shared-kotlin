@@ -43,7 +43,7 @@ interface HttpClient {
 
 }
 
-data class HttpFetchResponse(
+class HttpFetchResponse(
     val response: HttpResponse,
     val body: ByteArray,
 )
@@ -74,12 +74,10 @@ data class HttpResponse(
     fun valuesForHeader(name: String): List<String> {
         @Suppress("NAME_SHADOWING")
         val name = name.toLowerCase(Locale.ROOT)
-        for ((n, v) in headers) {
-            if (name == n.toLowerCase(Locale.ROOT)) {
-                return v
-            }
-        }
-        return emptyList()
+        return headers
+            .filterKeys { it.toLowerCase(Locale.ROOT) == name }
+            .values
+            .flatten()
     }
 
     /**
