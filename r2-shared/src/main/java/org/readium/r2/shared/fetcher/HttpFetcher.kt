@@ -7,6 +7,10 @@
 package org.readium.r2.shared.fetcher
 
 import android.webkit.URLUtil
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.readium.r2.shared.extensions.read
+import org.readium.r2.shared.extensions.tryOrLog
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.util.Try
 import org.readium.r2.shared.util.flatMap
@@ -16,10 +20,15 @@ import org.readium.r2.shared.util.http.HttpException.Kind
 import org.readium.r2.shared.util.http.HttpRequest
 import org.readium.r2.shared.util.http.HttpRequest.Method
 import org.readium.r2.shared.util.http.HttpResponse
+import org.readium.r2.shared.util.io.CountingInputStream
 import timber.log.Timber
+import java.io.InputStream
 
 /**
  * Fetches remote resources through HTTP.
+ *
+ * Since this fetcher is used when doing progressive download streaming (e.g. audiobook), the HTTP
+ * byte range requests are open-ended and reused. This helps to avoid issuing too many requests.
  *
  * @param client HTTP client used to perform HTTP requests.
  * @param baseUrl Base URL from which relative HREF are served.
@@ -69,15 +78,14 @@ class HttpFetcher(
 
         override suspend fun close() {}
 
-        override suspend fun read(range: LongRange?, consume: (ByteArray) -> Unit): ResourceTry<Unit> =
-            client
-                .progressiveDownload(
-                    request = HttpRequest(url),
-                    range = range,
-                    consumeData = { data, _ -> consume(data) }
-                )
-                .map { }
-                .mapFailure { Resource.Exception.wrapHttp(it) }
+        override suspend fun read(range: LongRange?): ResourceTry<ByteArray> =
+            stream(range?.first).map { stream ->
+                if (range != null) {
+                    stream.read(range.count().toLong())
+                } else {
+                    stream.readBytes()
+                }
+            }
 
         /** Cached HEAD response to get the expected content length and other metadata. */
         private lateinit var _headResponse: ResourceTry<HttpResponse>
@@ -92,6 +100,42 @@ class HttpFetcher(
 
             return _headResponse
         }
+
+        /**
+         * Returns an HTTP stream for the resource, starting at the [from] byte offset.
+         *
+         * The stream is cached and reused for next calls, if the next [from] offset is in a forward
+         * direction.
+         */
+        @Suppress("BlockingMethodInNonBlockingContext")
+        private suspend fun stream(from: Long? = null): ResourceTry<InputStream> = withContext(Dispatchers.IO) {
+            val stream = inputStream
+            if (from != null && stream != null) {
+                tryOrLog {
+                    val bytesToSkip = from - (inputStreamStart + stream.count)
+                    if (bytesToSkip >= 0) {
+                        stream.skip(bytesToSkip)
+                    }
+                    return@withContext Try.success(stream)
+                }
+            }
+            tryOrLog { inputStream?.close() }
+
+            val request = HttpRequest(url) {
+                from?.let { setRange(from..-1) }
+            }
+
+            client.stream(request)
+                .map { CountingInputStream(it.body) }
+                .mapFailure { Resource.Exception.wrapHttp(it) }
+                .onSuccess {
+                    inputStream = it
+                    inputStreamStart = from ?: 0
+                }
+        }
+
+        private var inputStream: CountingInputStream? = null
+        private var inputStreamStart = 0L
 
         private fun Resource.Exception.Companion.wrapHttp(e: HttpException): Resource.Exception =
             when (e.kind) {

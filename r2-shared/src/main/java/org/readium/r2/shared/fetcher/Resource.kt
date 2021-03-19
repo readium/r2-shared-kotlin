@@ -73,35 +73,8 @@ interface Resource {
      *
      * When [range] is null, the whole content is returned. Out-of-range indexes are clamped to the
      * available length automatically.
-     *
-     * Types implementing [Resource] MUST override either this function or read(LongRange?,
-     * (ByteArray) -> Void.
      */
-    suspend fun read(range: LongRange? = null): ResourceTry<ByteArray> =
-        try {
-            var data = ByteArray(0)
-            read(range) { data += it }
-                .map { data }
-        } catch (e: Throwable) {
-            ResourceTry.failure(Exception.wrap(e))
-        }
-
-    /**
-     * Reads the bytes at the given range asynchronously.
-     *
-     * The [consume] callback will be called with each chunk of read data. Callers are responsible
-     * to accumulate the total data.
-     *
-     * Types implementing [Resource] MUST override either this function or read(LongRange?).
-     */
-    suspend fun read(range: LongRange? = null, consume: (ByteArray) -> Unit): ResourceTry<Unit> =
-        try {
-            read(range)
-                .onSuccess { consume(it) }
-                .map { }
-        } catch (e: Throwable) {
-            ResourceTry.failure(Exception.wrap(e))
-        }
+    suspend fun read(range: LongRange? = null): ResourceTry<ByteArray>
 
     /**
      * Reads the full content as a [String].
@@ -415,10 +388,13 @@ class LazyResource(private val factory: suspend () -> Resource) : Resource {
  * when reading backward or far ahead.
  *
  * @param resource Underlying resource which will be buffered.
+ * @param resourceLength The total length of the resource, when known. This can improve performance
+ *        by avoiding requesting the length from the underlying resource.
  * @param bufferSize Size of the buffer chunks to read.
  */
 class BufferingResource(
     resource: Resource,
+    resourceLength: Long? = null,
     private val bufferSize: Long = DEFAULT_BUFFER_SIZE,
 ) : ProxyResource(resource) {
 
@@ -437,6 +413,12 @@ class BufferingResource(
         if (!::_cachedLength.isInitialized)
             _cachedLength = resource.length()
         return _cachedLength
+    }
+
+    init {
+        if (resourceLength != null) {
+            _cachedLength = Try.success(resourceLength)
+        }
     }
 
     override suspend fun read(range: LongRange?): ResourceTry<ByteArray> {
@@ -515,7 +497,7 @@ class BufferingResource(
         val first = requestedRange.first - start
         val lastExclusive = first + requestedRange.count()
         require(first >= 0)
-        require(lastExclusive <= data.count())
+        require(lastExclusive <= data.count()) { "$lastExclusive > ${data.count()}" }
         return data.copyOfRange(first.toInt(), lastExclusive.toInt())
     }
 
@@ -526,9 +508,13 @@ class BufferingResource(
 
 /**
  * Wraps this resource in a [BufferingResource] to improve reading performances.
+ *
+ * @param resourceLength The total length of the resource, when known. This can improve performance
+ *        by avoiding requesting the length from the underlying resource.
+ * @param bufferSize Size of the buffer chunks to read.
  */
-fun Resource.buffered(size: Long = BufferingResource.DEFAULT_BUFFER_SIZE) =
-    BufferingResource(resource = this, bufferSize = size)
+fun Resource.buffered(resourceLength: Long? = null, size: Long = BufferingResource.DEFAULT_BUFFER_SIZE) =
+    BufferingResource(resource = this, resourceLength = resourceLength, bufferSize = size)
 
 /**
  * Maps the result with the given [transform]

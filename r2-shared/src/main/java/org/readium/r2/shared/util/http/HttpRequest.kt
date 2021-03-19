@@ -41,12 +41,12 @@ data class HttpRequest(
     )
 
     companion object {
-        operator fun invoke(build: Builder.() -> Unit): HttpRequest =
-            Builder().apply(build).build()
+        operator fun invoke(url: String, build: Builder.() -> Unit): HttpRequest =
+            Builder(url).apply(build).build()
     }
 
     class Builder(
-        url: String = "",
+        url: String,
         var method: Method = Method.GET,
         var headers: MutableMap<String, String> = mutableMapOf(),
         var connectTimeout: Duration? = null,
@@ -76,6 +76,19 @@ data class HttpRequest(
 
         fun setHeader(key: String, value: String): Builder {
             headers[key] = value
+            return this
+        }
+
+        /**
+         * Issue a byte range request. Use -1 to download until the end.
+         */
+        fun setRange(range: LongRange): Builder {
+            val start = range.first.coerceAtLeast(0)
+            var value = "$start-"
+            if (range.last >= start) {
+                value += range.last
+            }
+            setHeader("Range", "bytes=$value")
             return this
         }
 

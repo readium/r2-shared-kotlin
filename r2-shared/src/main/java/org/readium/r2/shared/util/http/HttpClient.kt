@@ -7,6 +7,7 @@
 package org.readium.r2.shared.util.http
 
 import org.readium.r2.shared.util.mediatype.MediaType
+import java.io.InputStream
 import java.util.*
 
 /**
@@ -18,30 +19,26 @@ import java.util.*
 interface HttpClient {
 
     /**
-     * Fetches the resource from the given [request].
+     * Streams the resource from the given [request].
      */
-    suspend fun fetch(request: HttpRequest): HttpTry<HttpFetchResponse>
+    suspend fun stream(request: HttpRequest): HttpTry<HttpStreamResponse>
 
     /**
-     * Downloads a resource progressively.
-     *
-     * Useful in the context of streaming media playback.
-     *
-     * @param request Request to the downloaded resource.
-     * @param range If provided, issue a byte range request.
-     * @param receiveResponse Callback called when receiving the initial response, before consuming
-     *        its body. You can also access it in the completion block after consuming the data.
-     * @param consumeData Callback called for each chunk of data received. Callers are responsible
-     *        to accumulate the data if needed.
+     * Fetches the resource from the given [request].
      */
-    suspend fun progressiveDownload(
-        request: HttpRequest,
-        range: LongRange? = null,
-        receiveResponse: ((HttpResponse) -> Void)? = null,
-        consumeData: (chunk: ByteArray, progress: Double?) -> Unit,
-    ): HttpTry<HttpResponse>
+    suspend fun fetch(request: HttpRequest): HttpTry<HttpFetchResponse> =
+        stream(request)
+            .map { response ->
+                val body = response.body.use { it.readBytes() }
+                HttpFetchResponse(response.response, body)
+            }
 
 }
+
+class HttpStreamResponse(
+    val response: HttpResponse,
+    val body: InputStream,
+)
 
 class HttpFetchResponse(
     val response: HttpResponse,
