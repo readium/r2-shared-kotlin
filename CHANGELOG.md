@@ -9,7 +9,7 @@ All notable changes to this project will be documented in this file.
 * `HttpFetcher` is a new publication fetcher able to serve remote resources through HTTP.
     * The actual HTTP requests are performed with an instance of `HttpClient`.
 * `HttpClient` is a new protocol exposing a high level API to perform HTTP requests.
-    * `DefaultHttpClient` is an implementation of `HttpClient` using standard `HttpURLConnection` APIs. You can use its delegate to customize how requests are created and even recover from errors, e.g. to implement Authentication for OPDS.
+    * `DefaultHttpClient` is an implementation of `HttpClient` using standard `HttpURLConnection` APIs. You can use `DefaultHttpClient.Callback` to customize how requests are created and even recover from errors, e.g. to implement Authentication for OPDS.
     * You can provide your own implementation of `HttpClient` to Readium APIs if you prefer to use a third-party networking library.
 
 

@@ -120,3 +120,13 @@ inline fun <R, S : R, F : Throwable> Try<S, F>.recover(transform: (exception: F)
         Try.success(getOrThrow())
     else
         Try.success(transform(exceptionOrNull()!!))
+
+/**
+ * Returns the encapsulated result of the given transform function applied to the encapsulated |Throwable] exception
+ * if this instance represents failure or the original encapsulated value if it is success.
+ */
+inline fun <R, S : R, F : Throwable> Try<S, F>.tryRecover(transform: (exception: F) -> Try<R, F>): Try<R, F> =
+    if (isSuccess)
+        Try.success(getOrThrow())
+    else
+        transform(exceptionOrNull()!!)

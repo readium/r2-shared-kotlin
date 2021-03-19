@@ -6,13 +6,14 @@
 
 package org.readium.r2.shared.util.http
 
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.readium.r2.shared.util.Try
+import org.readium.r2.shared.util.flatMap
 import org.readium.r2.shared.util.http.HttpRequest.Method
 import org.readium.r2.shared.util.mediatype.MediaType
 import org.readium.r2.shared.util.mediatype.sniffMediaType
+import org.readium.r2.shared.util.tryRecover
 import timber.log.Timber
 import java.net.HttpURLConnection
 import java.net.URL
@@ -21,46 +22,120 @@ import kotlin.time.ExperimentalTime
 /**
  * An implementation of [HttpClient] using the native [HttpURLConnection].
  */
-class DefaultHttpClient : HttpClient {
+class DefaultHttpClient(var callback: Callback? = null) : HttpClient {
 
-    @Suppress("BlockingMethodInNonBlockingContext") // We are using Dispatchers.IO but we still get this warning...
-    override suspend fun stream(request: HttpRequest): HttpTry<HttpStreamResponse> = withContext(Dispatchers.IO) {
-        Timber.i("HTTP ${request.method.name} ${request.url}, headers: ${request.headers}")
+    /**
+     * Callbacks allowing to override some behavior of the [DefaultHttpClient].
+     */
+    interface Callback {
 
-        try {
-            val connection = request.toHttpURLConnection()
+        /**
+         * Called when the HTTP client will start a new [request].
+         *
+         * You can modify the [request], for example by adding additional HTTP headers or
+         * redirecting to a different URL, before returning it.
+         */
+        suspend fun onStartRequest(request: HttpRequest): HttpTry<HttpRequest> =
+            Try.success(request)
 
-            val statusCode = connection.responseCode
-            HttpException.Kind.ofStatusCode(statusCode)?.let { kind ->
-                // It was a HEAD request? We need to query the resource again to get the error body.
-                // The body is needed for example when the response is an OPDS Authentication
-                // Document.
-                if (request.method == Method.HEAD) {
-                    return@withContext stream(request.copy(method = Method.GET))
-                }
+        /**
+         * Called when the HTTP client received an [error] for the given [request], to provide an
+         * opportunity to the implementer to recover from it.
+         *
+         * You can return either:
+         *   - a new recovery request to start
+         *   - the [error] argument, if you cannot recover from it
+         *   - a new [HttpException] to provide additional information
+         */
+        suspend fun onRecoverRequest(request: HttpRequest, error: HttpException): HttpTry<HttpRequest> =
+            Try.failure(error)
 
-                // Reads the full body, since it might contain an error representation such as
-                // JSON Problem Details or OPDS Authentication Document
-                val body = connection.inputStream.use { it.readBytes() }
-                val mediaType = connection.sniffMediaType(bytes = { body })
-                throw HttpException(kind, mediaType, body)
-            }
+        /**
+         * Called when the HTTP client received an HTTP response for the given [request].
+         *
+         * You do not need to do anything with this [response], which the HTTP client will handle.
+         * This is merely for informational purposes. For example, you could implement this to
+         * confirm that request credentials were successful.
+         */
+        suspend fun onResponseReceived(request: HttpRequest, response: HttpResponse) {}
 
-            Try.success(HttpStreamResponse(
-                response = HttpResponse(
-                    headers = connection.safeHeaders,
-                    mediaType = connection.sniffMediaType() ?: MediaType.BINARY,
-                ),
-                body = connection.inputStream,
-            ))
+        /**
+         * Called when the HTTP client received an [error] for the given [request].
+         *
+         * You do not need to do anything with this `error`, which the HTTP client will handle. This
+         * is merely for informational purposes.
+         *
+         * This will be called only if [onRecoverRequest] is not implemented, or returns an error.
+         */
+        suspend fun onRequestFailed(request: HttpRequest, error: HttpException) {}
 
-        } catch (e: Exception) {
-            if (e !is CancellationException) {
-                Timber.e(e, "HTTP request failed ${request.url}")
-            }
-            Try.failure(HttpException.wrap(e))
-        }
     }
+
+    // We are using Dispatchers.IO but we still get this warning...
+    @Suppress("BlockingMethodInNonBlockingContext", "NAME_SHADOWING")
+    override suspend fun stream(request: HttpRequest): HttpTry<HttpStreamResponse> {
+
+        suspend fun tryStream(request: HttpRequest): HttpTry<HttpStreamResponse> =
+            withContext(Dispatchers.IO) {
+                Timber.i("HTTP ${request.method.name} ${request.url}, headers: ${request.headers}")
+
+                try {
+                    val connection = request.toHttpURLConnection()
+
+                    val statusCode = connection.responseCode
+                    HttpException.Kind.ofStatusCode(statusCode)?.let { kind ->
+                        // It was a HEAD request? We need to query the resource again to get the error body.
+                        // The body is needed for example when the response is an OPDS Authentication
+                        // Document.
+                        if (request.method == Method.HEAD) {
+                            return@withContext stream(request.copy(method = Method.GET))
+                        }
+
+                        // Reads the full body, since it might contain an error representation such as
+                        // JSON Problem Details or OPDS Authentication Document
+                        val body = connection.inputStream.use { it.readBytes() }
+                        val mediaType = connection.sniffMediaType(bytes = { body })
+                        throw HttpException(kind, mediaType, body)
+                    }
+
+                    val response = HttpResponse(
+                        headers = connection.safeHeaders,
+                        mediaType = connection.sniffMediaType() ?: MediaType.BINARY,
+                    )
+
+                    callback?.onResponseReceived(request, response)
+                    Try.success(HttpStreamResponse(
+                        response = response,
+                        body = connection.inputStream,
+                    ))
+
+                } catch (e: Exception) {
+                    Try.failure(HttpException.wrap(e))
+                }
+            }
+
+
+        return onStartRequest(request)
+            .flatMap { tryStream(it) }
+            .tryRecover { error ->
+                if (error.kind != HttpException.Kind.Cancelled) {
+                    onRecoverRequest(request, error)
+                        .flatMap { stream(it) }
+                } else {
+                    Try.failure(error)
+                }
+            }
+            .onFailure {
+                callback?.onRequestFailed(request, it)
+                Timber.e(it, "HTTP request failed ${request.url}")
+            }
+    }
+
+    private suspend fun onStartRequest(request: HttpRequest): HttpTry<HttpRequest> =
+        callback?.onStartRequest(request) ?: Try.success(request)
+
+    private suspend fun onRecoverRequest(request: HttpRequest, error: HttpException): HttpTry<HttpRequest> =
+        callback?.onRecoverRequest(request, error) ?: Try.failure(error)
 
 }
 
