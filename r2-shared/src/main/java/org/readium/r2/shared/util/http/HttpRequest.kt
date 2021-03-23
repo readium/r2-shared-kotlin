@@ -1,11 +1,15 @@
 package org.readium.r2.shared.util.http
 
 import android.net.Uri
+import java.io.Serializable
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
 
 /**
  * Holds the information about an HTTP request performed by an [HttpClient].
+ *
  * @param url Address of the remote resource to request.
  * @param method HTTP method to use for the request.
  * @param headers Additional HTTP headers to use.
@@ -17,24 +21,32 @@ import kotlin.time.ExperimentalTime
  *        as popping up an authentication dialog.
  */
 @OptIn(ExperimentalTime::class)
-data class HttpRequest(
+class HttpRequest(
     val url: String,
     val method: Method = Method.GET,
     val headers: Map<String, String> = mapOf(),
+    val body: Body? = null,
     val connectTimeout: Duration? = null,
     val readTimeout: Duration? = null,
     val allowUserInteraction: Boolean = false,
-) {
+) : Serializable {
 
     /** Supported HTTP methods. */
-    enum class Method {
-        GET, HEAD, POST, PUT;
+    enum class Method : Serializable {
+        DELETE, GET, HEAD, PATCH, POST, PUT;
+    }
+
+    /** Supported body values. */
+    sealed class Body : Serializable {
+        class Bytes(val bytes: ByteArray): Body()
+        class File(val file: java.io.File): Body()
     }
 
     fun buildUpon() = Builder(
         url = url,
         method = method,
         headers = headers.toMutableMap(),
+        body = body,
         connectTimeout = connectTimeout,
         readTimeout = readTimeout,
         allowUserInteraction = allowUserInteraction
@@ -49,6 +61,7 @@ data class HttpRequest(
         url: String,
         var method: Method = Method.GET,
         var headers: MutableMap<String, String> = mutableMapOf(),
+        var body: Body? = null,
         var connectTimeout: Duration? = null,
         var readTimeout: Duration? = null,
         var allowUserInteraction: Boolean = false,
@@ -91,6 +104,25 @@ data class HttpRequest(
             setHeader("Range", "bytes=$value")
             return this
         }
+
+        /**
+         * Initializes a POST request with the given form data.
+         */
+        fun setPostForm(form: Map<String, String?>): Builder {
+            method = Method.POST
+            setHeader("Content-Type", "application/x-www-form-urlencoded")
+
+            body = Body.Bytes(form
+                .map { (key, value) ->
+                    "$key=${URLEncoder.encode(value ?: "", StandardCharsets.UTF_8.toString())}"
+                }
+                .joinToString("&")
+                .toByteArray()
+            )
+
+            return this
+        }
+
 
         fun build(): HttpRequest = HttpRequest(
             url = url,

@@ -89,7 +89,7 @@ interface Warning {
  * @param reason Details about the failure.
  * @param json Source [JSONObject].
  */
-internal data class JsonWarning(
+data class JsonWarning(
     val modelClass: Class<*>,
     val reason: String,
     override val severity: Warning.SeverityLevel,
@@ -109,7 +109,7 @@ internal data class JsonWarning(
  * @param severity The severity level of this warning.
  * @param json Source [JSONObject].
  */
-internal fun WarningLogger.log(
+fun WarningLogger.log(
     modelClass: Class<*>, reason: String,
     json: JSONObject? = null,
     severity: Warning.SeverityLevel = Warning.SeverityLevel.MAJOR

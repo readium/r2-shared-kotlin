@@ -15,6 +15,8 @@ import org.readium.r2.shared.util.mediatype.MediaType
 import org.readium.r2.shared.util.mediatype.sniffMediaType
 import org.readium.r2.shared.util.tryRecover
 import timber.log.Timber
+import java.io.ByteArrayInputStream
+import java.io.FileInputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.time.ExperimentalTime
@@ -88,7 +90,12 @@ class DefaultHttpClient(var callback: Callback? = null) : HttpClient {
                         // The body is needed for example when the response is an OPDS Authentication
                         // Document.
                         if (request.method == Method.HEAD) {
-                            return@withContext stream(request.copy(method = Method.GET))
+                            return@withContext stream(
+                                request
+                                    .buildUpon()
+                                    .apply { method = Method.GET }
+                                    .build()
+                            )
                         }
 
                         // Reads the full body, since it might contain an error representation such as
@@ -154,6 +161,21 @@ private fun HttpRequest.toHttpURLConnection(): HttpURLConnection {
 
     for ((k, v) in headers) {
         connection.setRequestProperty(k, v)
+    }
+
+    if (body != null) {
+        connection.doOutput = true
+
+        connection.outputStream.use { outputStream ->
+            val inputStream = when (body) {
+                is HttpRequest.Body.Bytes ->
+                    ByteArrayInputStream(body.bytes)
+                is HttpRequest.Body.File ->
+                    FileInputStream(body.file)
+            }
+
+            inputStream.use { it.copyTo(outputStream) }
+        }
     }
 
     return connection

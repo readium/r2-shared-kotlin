@@ -11,10 +11,8 @@ import org.json.JSONObject
 import org.readium.r2.shared.R
 import org.readium.r2.shared.UserException
 import org.readium.r2.shared.extensions.tryOrLog
-import org.readium.r2.shared.fetcher.Resource
 import org.readium.r2.shared.util.Try
 import org.readium.r2.shared.util.mediatype.MediaType
-import java.io.IOException
 import java.net.MalformedURLException
 import java.net.SocketTimeoutException
 import java.util.concurrent.CancellationException
@@ -91,6 +89,11 @@ class HttpException(
     }
 
     companion object {
+
+        /**
+         * Shortcut for a cancelled HTTP error.
+         */
+        val CANCELLED = HttpException(kind = Kind.Cancelled)
 
         /**
          * Creates an HTTP error from a status code.

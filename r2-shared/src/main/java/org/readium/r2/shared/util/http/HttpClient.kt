@@ -6,6 +6,9 @@
 
 package org.readium.r2.shared.util.http
 
+import org.json.JSONObject
+import org.readium.r2.shared.util.Try
+import org.readium.r2.shared.util.flatMap
 import org.readium.r2.shared.util.mediatype.MediaType
 import java.io.InputStream
 import java.util.*
@@ -34,6 +37,29 @@ interface HttpClient {
             }
 
 }
+
+/**
+ * Fetches the resource from the given [request] before decoding it with the provided [decoder].
+ *
+ * If the decoder fails, a MalformedResponse error is returned.
+ */
+suspend fun <T> HttpClient.fetchWithDecoder(request: HttpRequest, decoder: (HttpFetchResponse) -> T): HttpTry<T> =
+    fetch(request)
+        .flatMap {
+            try {
+                Try.success(decoder(it))
+            } catch (e: Exception) {
+                Try.failure(HttpException(kind = HttpException.Kind.MalformedResponse, cause = e))
+            }
+        }
+
+/**
+ * Fetches the resource form the given [request] as a [JSONObject].
+ */
+suspend fun HttpClient.fetchJSONObject(request: HttpRequest): HttpTry<JSONObject> =
+    fetchWithDecoder(request) { response ->
+        JSONObject(String(response.body))
+    }
 
 class HttpStreamResponse(
     val response: HttpResponse,
