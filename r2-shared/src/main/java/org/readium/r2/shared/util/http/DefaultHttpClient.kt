@@ -19,12 +19,27 @@ import java.io.ByteArrayInputStream
 import java.io.FileInputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
 
 /**
  * An implementation of [HttpClient] using the native [HttpURLConnection].
+ *
+ * @param userAgent Custom user agent to use for requests.
+ * @param additionalHeaders A dictionary of additional headers to send with requests.
+ * @param connectTimeout Timeout used when establishing a connection to the resource. A null timeout
+ *        is interpreted as the default value, while a timeout of zero as an infinite timeout.
+ * @param readTimeout Timeout used when reading the input stream. A null timeout is interpreted
+ *        as the default value, while a timeout of zero as an infinite timeout.
  */
-class DefaultHttpClient(var callback: Callback? = null) : HttpClient {
+@OptIn(ExperimentalTime::class)
+class DefaultHttpClient constructor(
+    private val userAgent: String? = null,
+    private val additionalHeaders: Map<String, String> = mapOf(),
+    private val connectTimeout: Duration? = null,
+    private val readTimeout: Duration? = null,
+    var callback: Callback? = null,
+) : HttpClient {
 
     /**
      * Callbacks allowing to override some behavior of the [DefaultHttpClient].
@@ -144,46 +159,57 @@ class DefaultHttpClient(var callback: Callback? = null) : HttpClient {
     private suspend fun onRecoverRequest(request: HttpRequest, error: HttpException): HttpTry<HttpRequest> =
         callback?.onRecoverRequest(request, error) ?: Try.failure(error)
 
-}
+    @OptIn(ExperimentalTime::class)
+    private fun HttpRequest.toHttpURLConnection(): HttpURLConnection {
+        val url = URL(url)
+        val connection = (url.openConnection() as HttpURLConnection)
+        connection.requestMethod = method.name
 
-@OptIn(ExperimentalTime::class)
-private fun HttpRequest.toHttpURLConnection(): HttpURLConnection {
-    val url = URL(url)
-    val connection = (url.openConnection() as HttpURLConnection)
-    connection.requestMethod = method.name
-    if (readTimeout != null) {
-        connection.readTimeout = readTimeout.toLongMilliseconds().toInt()
-    }
-    if (connectTimeout != null) {
-        connection.connectTimeout = connectTimeout.toLongMilliseconds().toInt()
-    }
-    connection.allowUserInteraction = allowUserInteraction
-
-    for ((k, v) in headers) {
-        connection.setRequestProperty(k, v)
-    }
-
-    if (body != null) {
-        connection.doOutput = true
-
-        connection.outputStream.use { outputStream ->
-            val inputStream = when (body) {
-                is HttpRequest.Body.Bytes ->
-                    ByteArrayInputStream(body.bytes)
-                is HttpRequest.Body.File ->
-                    FileInputStream(body.file)
-            }
-
-            inputStream.use { it.copyTo(outputStream) }
+        val readTimeout = readTimeout ?: this@DefaultHttpClient.readTimeout
+        if (readTimeout != null) {
+            connection.readTimeout = readTimeout.toLongMilliseconds().toInt()
         }
+
+        val connectTimeout = connectTimeout ?: this@DefaultHttpClient.connectTimeout
+        if (connectTimeout != null) {
+            connection.connectTimeout = connectTimeout.toLongMilliseconds().toInt()
+        }
+        connection.allowUserInteraction = allowUserInteraction
+
+        if (userAgent != null) {
+            connection.setRequestProperty("User-Agent", userAgent)
+        }
+
+        for ((k, v) in this@DefaultHttpClient.additionalHeaders) {
+            connection.setRequestProperty(k, v)
+        }
+        for ((k, v) in headers) {
+            connection.setRequestProperty(k, v)
+        }
+
+        if (body != null) {
+            connection.doOutput = true
+
+            connection.outputStream.use { outputStream ->
+                val inputStream = when (body) {
+                    is HttpRequest.Body.Bytes ->
+                        ByteArrayInputStream(body.bytes)
+                    is HttpRequest.Body.File ->
+                        FileInputStream(body.file)
+                }
+
+                inputStream.use { it.copyTo(outputStream) }
+            }
+        }
+
+        return connection
     }
 
-    return connection
+    private val HttpURLConnection.safeHeaders: Map<String, List<String>> get() =
+        headerFields.filterNot { (key, value) ->
+            // In practice, I found that some header names are null despite the force unwrapping.
+            @Suppress("SENSELESS_COMPARISON")
+            key == null || value == null
+        }
+
 }
-
-private val HttpURLConnection.safeHeaders: Map<String, List<String>> get() =
-    headerFields.filterNot { (key, value) ->
-        // In practice, I found that some header names are null despite the force unwrapping.
-        @Suppress("SENSELESS_COMPARISON")
-        key == null || value == null
-    }

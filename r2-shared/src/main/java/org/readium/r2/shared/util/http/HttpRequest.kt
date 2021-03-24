@@ -15,7 +15,7 @@ import kotlin.time.ExperimentalTime
  * @param headers Additional HTTP headers to use.
  * @param connectTimeout Timeout used when establishing a connection to the resource. A null timeout
  *        is interpreted as the default value, while a timeout of zero as an infinite timeout.
- * @param connectTimeout Timeout used when reading the input stream. A null timeout is interpreted
+ * @param readTimeout Timeout used when reading the input stream. A null timeout is interpreted
  *        as the default value, while a timeout of zero as an infinite timeout.
  * @param allowUserInteraction If true, the user might be presented with interactive dialogs, such
  *        as popping up an authentication dialog.

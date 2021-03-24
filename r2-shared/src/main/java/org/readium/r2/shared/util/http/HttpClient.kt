@@ -36,6 +36,10 @@ interface HttpClient {
                 HttpFetchResponse(response.response, body)
             }
 
+    // Declare a companion object to allow reading apps to extend it. For example, by adding a
+    // HttpClient.get(Context) constructor.
+    companion object
+
 }
 
 /**
