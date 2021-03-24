@@ -10,6 +10,8 @@
 package org.readium.r2.shared.util.logging
 
 import org.json.JSONObject
+import org.readium.r2.shared.util.logging.Warning.SeverityLevel.*
+import timber.log.Timber
 
 
 // FIXME: Mark this interface as functional to benefit from the SAM-conversion in Kotlin 1.4 https://blog.jetbrains.com/kotlin/2020/03/kotlin-1-4-m1-released/#new-type-inference
@@ -28,7 +30,7 @@ interface WarningLogger {
  * Implementation of a [WarningLogger] that accumulates the warnings in a list, to be used as a
  * convenience by third-party apps.
  */
-internal class ListWarningLogger : WarningLogger {
+class ListWarningLogger : WarningLogger {
 
     /**
      * The list of accumulated [Warning]s.
@@ -38,6 +40,21 @@ internal class ListWarningLogger : WarningLogger {
 
     override fun log(warning: Warning) {
         _warnings.add(warning)
+    }
+
+}
+
+/**
+ * Implementation of a [WarningLogger] printing the warnings to the console.
+ */
+class ConsoleWarningLogger : WarningLogger {
+
+    override fun log(warning: Warning) {
+        val message = "[${warning.tag}] ${warning.message}"
+        when (warning.severity) {
+            MINOR, MODERATE -> Timber.w(message)
+            MAJOR -> Timber.e(message)
+        }
     }
 
 }
