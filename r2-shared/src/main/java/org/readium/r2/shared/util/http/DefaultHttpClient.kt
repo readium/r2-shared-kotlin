@@ -82,7 +82,7 @@ class DefaultHttpClient(var callback: Callback? = null) : HttpClient {
                 Timber.i("HTTP ${request.method.name} ${request.url}, headers: ${request.headers}")
 
                 try {
-                    val connection = request.toHttpURLConnection()
+                    var connection = request.toHttpURLConnection()
 
                     val statusCode = connection.responseCode
                     HttpException.Kind.ofStatusCode(statusCode)?.let { kind ->
@@ -90,17 +90,16 @@ class DefaultHttpClient(var callback: Callback? = null) : HttpClient {
                         // The body is needed for example when the response is an OPDS Authentication
                         // Document.
                         if (request.method == Method.HEAD) {
-                            return@withContext stream(
-                                request
-                                    .buildUpon()
-                                    .apply { method = Method.GET }
-                                    .build()
-                            )
+                            connection = request
+                                .buildUpon()
+                                .apply { method = Method.GET }
+                                .build()
+                                .toHttpURLConnection()
                         }
 
                         // Reads the full body, since it might contain an error representation such as
                         // JSON Problem Details or OPDS Authentication Document
-                        val body = connection.inputStream.use { it.readBytes() }
+                        val body = connection.errorStream.use { it.readBytes() }
                         val mediaType = connection.sniffMediaType(bytes = { body })
                         throw HttpException(kind, mediaType, body)
                     }
