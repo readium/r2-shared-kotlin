@@ -105,6 +105,7 @@ class DefaultHttpClient(var callback: Callback? = null) : HttpClient {
                     }
 
                     val response = HttpResponse(
+                        statusCode = statusCode,
                         headers = connection.safeHeaders,
                         mediaType = connection.sniffMediaType() ?: MediaType.BINARY,
                     )
