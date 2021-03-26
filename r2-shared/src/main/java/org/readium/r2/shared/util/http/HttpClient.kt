@@ -11,6 +11,7 @@ import org.readium.r2.shared.util.Try
 import org.readium.r2.shared.util.flatMap
 import org.readium.r2.shared.util.mediatype.MediaType
 import java.io.InputStream
+import java.nio.charset.Charset
 import java.util.*
 
 /**
@@ -56,6 +57,14 @@ suspend fun <T> HttpClient.fetchWithDecoder(request: HttpRequest, decoder: (Http
                 Try.failure(HttpException(kind = HttpException.Kind.MalformedResponse, cause = e))
             }
         }
+
+/**
+ * Fetches the resource form the given [request] as a [String].
+ */
+suspend fun HttpClient.fetchString(request: HttpRequest, charset: Charset = Charsets.UTF_8): HttpTry<String> =
+    fetchWithDecoder(request) { response ->
+        String(response.body, charset)
+    }
 
 /**
  * Fetches the resource form the given [request] as a [JSONObject].
