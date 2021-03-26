@@ -6,6 +6,7 @@
 
 package org.readium.r2.shared.util.http
 
+import android.content.Context
 import androidx.annotation.StringRes
 import org.json.JSONObject
 import org.readium.r2.shared.R
@@ -79,8 +80,24 @@ class HttpException(
         }
     }
 
+    override fun getUserMessage(context: Context, includesCauses: Boolean): String {
+        problemDetails?.let { error ->
+            var message = error.title
+            if (error.detail != null) {
+                message += "\n" + error.detail
+            }
+            return message
+        }
+
+        return super.getUserMessage(context, includesCauses)
+    }
+
     override fun getLocalizedMessage(): String? {
-        return "HTTP error: ${kind.name}"
+        var message = "HTTP error: ${kind.name}"
+        problemDetails?.let { details ->
+            message += ": ${details.title} ${details.detail}"
+        }
+        return message
     }
 
     /** Response body parsed as a JSON problem details. */
