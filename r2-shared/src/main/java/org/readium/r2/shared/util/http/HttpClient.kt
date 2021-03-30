@@ -87,12 +87,14 @@ class HttpFetchResponse(
 /**
  * Represents a successful HTTP response received from a server.
  *
+ * @param url Final URL of the response.
  * @param statusCode Response status code.
  * @param headers HTTP response headers, indexed by their name.
  * @param mediaType Media type sniffed from the `Content-Type` header and response body. Falls back
  *        on `application/octet-stream`.
  */
 data class HttpResponse(
+    val url: String,
     val statusCode: Int,
     val headers: Map<String, List<String>>,
     val mediaType: MediaType,

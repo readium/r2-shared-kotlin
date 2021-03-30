@@ -120,6 +120,7 @@ class DefaultHttpClient constructor(
                     }
 
                     val response = HttpResponse(
+                        url = connection.url.toString(),
                         statusCode = statusCode,
                         headers = connection.safeHeaders,
                         mediaType = connection.sniffMediaType() ?: MediaType.BINARY,
