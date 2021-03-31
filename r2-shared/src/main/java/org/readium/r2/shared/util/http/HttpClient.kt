@@ -6,6 +6,8 @@
 
 package org.readium.r2.shared.util.http
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import org.readium.r2.shared.util.Try
 import org.readium.r2.shared.util.flatMap
@@ -33,7 +35,9 @@ interface HttpClient {
     suspend fun fetch(request: HttpRequest): HttpTry<HttpFetchResponse> =
         stream(request)
             .map { response ->
-                val body = response.body.use { it.readBytes() }
+                val body = withContext(Dispatchers.IO) {
+                    response.body.use { it.readBytes() }
+                }
                 HttpFetchResponse(response.response, body)
             }
 
