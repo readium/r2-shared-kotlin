@@ -128,6 +128,7 @@ class HttpRequest(
             url = url,
             method = method,
             headers = headers.toMap(),
+            body = body,
             connectTimeout = connectTimeout,
             readTimeout = readTimeout,
             allowUserInteraction = allowUserInteraction,
