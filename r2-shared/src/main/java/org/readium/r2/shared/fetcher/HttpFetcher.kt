@@ -78,7 +78,7 @@ class HttpFetcher(
 
         override suspend fun close() {}
 
-        override suspend fun read(range: LongRange?): ResourceTry<ByteArray> =
+        override suspend fun read(range: LongRange?): ResourceTry<ByteArray> = withContext(Dispatchers.IO) {
             stream(range?.first).map { stream ->
                 if (range != null) {
                     stream.read(range.count().toLong())
@@ -86,6 +86,7 @@ class HttpFetcher(
                     stream.readBytes()
                 }
             }
+        }
 
         /** Cached HEAD response to get the expected content length and other metadata. */
         private lateinit var _headResponse: ResourceTry<HttpResponse>
@@ -107,8 +108,7 @@ class HttpFetcher(
          * The stream is cached and reused for next calls, if the next [from] offset is in a forward
          * direction.
          */
-        @Suppress("BlockingMethodInNonBlockingContext")
-        private suspend fun stream(from: Long? = null): ResourceTry<InputStream> = withContext(Dispatchers.IO) {
+        private suspend fun stream(from: Long? = null): ResourceTry<InputStream> {
             val stream = inputStream
             if (from != null && stream != null) {
                 tryOrLog {
@@ -116,7 +116,7 @@ class HttpFetcher(
                     if (bytesToSkip >= 0) {
                         stream.skip(bytesToSkip)
                     }
-                    return@withContext Try.success(stream)
+                    return Try.success(stream)
                 }
             }
             tryOrLog { inputStream?.close() }
@@ -125,7 +125,7 @@ class HttpFetcher(
                 from?.let { setRange(from..-1) }
             }
 
-            client.stream(request)
+            return client.stream(request)
                 .map { CountingInputStream(it.body) }
                 .mapFailure { Resource.Exception.wrapHttp(it) }
                 .onSuccess {
