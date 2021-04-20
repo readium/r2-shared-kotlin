@@ -34,11 +34,15 @@ interface HttpClient {
      */
     suspend fun fetch(request: HttpRequest): HttpTry<HttpFetchResponse> =
         stream(request)
-            .map { response ->
-                val body = withContext(Dispatchers.IO) {
-                    response.body.use { it.readBytes() }
+            .flatMap { response ->
+                try {
+                    val body = withContext(Dispatchers.IO) {
+                        response.body.use { it.readBytes() }
+                    }
+                    Try.success(HttpFetchResponse(response.response, body))
+                } catch (e: Exception) {
+                    Try.failure(HttpException.wrap(e))
                 }
-                HttpFetchResponse(response.response, body)
             }
 
     // Declare a companion object to allow reading apps to extend it. For example, by adding a
