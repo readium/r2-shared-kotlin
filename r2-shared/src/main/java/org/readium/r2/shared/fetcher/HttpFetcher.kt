@@ -79,12 +79,18 @@ class HttpFetcher(
         override suspend fun close() {}
 
         override suspend fun read(range: LongRange?): ResourceTry<ByteArray> = withContext(Dispatchers.IO) {
-            stream(range?.first).map { stream ->
-                if (range != null) {
-                    stream.read(range.count().toLong())
-                } else {
-                    stream.readBytes()
+            try {
+                stream(range?.first).map { stream ->
+                    if (range != null) {
+                        stream.read(range.count().toLong())
+                    } else {
+                        stream.readBytes()
+                    }
                 }
+            } catch (e: HttpException) {
+                Try.failure(Resource.Exception.wrapHttp(e))
+            } catch (e: Exception) {
+                Try.failure(Resource.Exception.wrap(e))
             }
         }
 

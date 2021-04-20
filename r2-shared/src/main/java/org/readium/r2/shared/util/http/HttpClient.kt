@@ -67,7 +67,7 @@ suspend fun <T> HttpClient.fetchWithDecoder(request: HttpRequest, decoder: (Http
         }
 
 /**
- * Fetches the resource form the given [request] as a [String].
+ * Fetches the resource from the given [request] as a [String].
  */
 suspend fun HttpClient.fetchString(request: HttpRequest, charset: Charset = Charsets.UTF_8): HttpTry<String> =
     fetchWithDecoder(request) { response ->
@@ -75,7 +75,7 @@ suspend fun HttpClient.fetchString(request: HttpRequest, charset: Charset = Char
     }
 
 /**
- * Fetches the resource form the given [request] as a [JSONObject].
+ * Fetches the resource from the given [request] as a [JSONObject].
  */
 suspend fun HttpClient.fetchJSONObject(request: HttpRequest): HttpTry<JSONObject> =
     fetchWithDecoder(request) { response ->
