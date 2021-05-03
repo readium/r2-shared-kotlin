@@ -14,7 +14,10 @@ import org.readium.r2.shared.R
 import org.readium.r2.shared.UserException
 import org.readium.r2.shared.fetcher.Resource
 import org.readium.r2.shared.publication.LocatorCollection
+import org.readium.r2.shared.publication.Publication
+import org.readium.r2.shared.publication.ServiceFactory
 import org.readium.r2.shared.util.Try
+import org.readium.r2.shared.util.flatMap
 import org.readium.r2.shared.util.http.HttpException
 
 typealias SearchTry<SuccessT> = Try<SuccessT, SearchException>
@@ -27,6 +30,11 @@ sealed class SearchException(content: Content, cause: Throwable? = null) : UserE
         : this(Content(userMessageId, *args), cause)
     constructor(cause: UserException)
         : this(Content(cause), cause)
+
+    /**
+     * The publication is not searchable.
+     */
+    object PublicationNotSearchable : SearchException(R.string.r2_shared_search_exception_publication_not_searchable)
 
     /**
      * The provided search query cannot be handled by the service.
@@ -72,7 +80,7 @@ sealed class SearchException(content: Content, cause: Throwable? = null) : UserE
 /**
  * Provides a way to search terms in a publication.
  */
-interface SearchService {
+interface SearchService : Publication.Service {
 
     /**
      * Represents a feature supported by the Search Service.
@@ -114,6 +122,24 @@ interface SearchService {
 }
 
 /**
+ * Indicates whether the content of this publication can be searched.
+ */
+val Publication.isSearchable get() =
+    findService(SearchService::class) != null
+
+/**
+ * Starts a new search through the publication content, with the given [query].
+ */
+suspend fun Publication.search(query: String, options: Set<SearchService.Option> = emptySet()): SearchTry<SearchIterator> =
+    findService(SearchService::class)?.search(query, options)
+        ?: Try.failure(SearchException.PublicationNotSearchable)
+
+/** Factory to build a [SearchService] */
+var Publication.ServicesBuilder.searchServiceFactory: ServiceFactory?
+    get() = get(SearchService::class)
+    set(value) = set(SearchService::class, value)
+
+/**
  * Iterates through search results.
  */
 interface SearchIterator {
@@ -138,4 +164,24 @@ interface SearchIterator {
      * To be called when the user dismisses the search.
      */
     suspend fun close() {}
+
+    /**
+     * Performs the given operation on each result page of this [SearchIterator].
+     */
+    suspend fun forEach(action: (LocatorCollection) -> Unit): SearchTry<Unit> {
+        while (true) {
+            val res = next()
+            res
+                .onSuccess { locators ->
+                    if (locators != null) {
+                        action(locators)
+                    } else {
+                        return Try.success(Unit)
+                    }
+                }
+                .onFailure {
+                    return Try.failure(it)
+                }
+        }
+    }
 }

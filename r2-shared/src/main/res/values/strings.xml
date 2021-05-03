@@ -34,6 +34,7 @@
     <string name="r2.shared.http.exception.cancelled">The request was cancelled</string>
     <string name="r2.shared.http.exception.other">A networking error occurred</string>
 
+    <string name="r2.shared.search.exception.publication_not_searchable">This publication is not searchable</string>
     <string name="r2.shared.search.exception.cancelled">The search was cancelled</string>
     <string name="r2.shared.search.exception.other">An error occurred while searching</string>
 </resources>

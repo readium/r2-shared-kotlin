@@ -29,6 +29,7 @@ import org.readium.r2.shared.util.mediatype.MediaType
 import org.readium.r2.shared.publication.epub.listOfAudioClips
 import org.readium.r2.shared.publication.epub.listOfVideoClips
 import org.readium.r2.shared.publication.services.*
+import org.readium.r2.shared.publication.services.search.SearchService
 import org.readium.r2.shared.util.Ref
 import timber.log.Timber
 import java.net.URL
@@ -349,12 +350,14 @@ class Publication(
             contentProtection: ServiceFactory? = null,
             cover: ServiceFactory? = null,
             locator: ServiceFactory? = { DefaultLocatorService(it.manifest.readingOrder, it.publication) },
-            positions: ServiceFactory? = null
+            positions: ServiceFactory? = null,
+            search: ServiceFactory? = null,
         ) : this(mapOf(
             ContentProtectionService::class.java.simpleName to contentProtection,
             CoverService::class.java.simpleName to cover,
             LocatorService::class.java.simpleName to locator,
-            PositionsService::class.java.simpleName to positions
+            PositionsService::class.java.simpleName to positions,
+            SearchService::class.java.simpleName to search,
         ).filterValues { it != null }.toMutableMap() as MutableMap<String, ServiceFactory>)
 
         /** Builds the actual list of publication services to use in a Publication. */
