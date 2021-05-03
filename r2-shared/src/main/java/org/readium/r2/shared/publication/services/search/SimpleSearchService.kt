@@ -12,10 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
 import org.readium.r2.shared.fetcher.Resource
-import org.readium.r2.shared.publication.Locator
-import org.readium.r2.shared.publication.LocatorCollection
-import org.readium.r2.shared.publication.Publication
-import org.readium.r2.shared.publication.toLocator
+import org.readium.r2.shared.publication.*
 import org.readium.r2.shared.util.Ref
 import org.readium.r2.shared.util.Try
 import org.readium.r2.shared.util.mediatype.MediaType
@@ -26,16 +23,9 @@ import timber.log.Timber
  * resources and delegating the actual search to media-type-specific searchers.
  */
 class SimpleSearchService private constructor(
-    private val searchers: Map<List<MediaType>, Searcher>,
+    private val searchers: List<Searcher>,
     private val publication: Ref<Publication>,
 ) : SearchService {
-
-    /**
-     * Resource searcher specific to a media type.
-     */
-    interface Searcher {
-        suspend fun search(publication: Publication, resource: Resource, query: String, options: Set<SearchService.Option>): SearchTry<LocatorCollection>
-    }
 
     override val capabilities: Set<SearchService.Capability>
         get() = emptySet()
@@ -62,8 +52,7 @@ class SimpleSearchService private constructor(
             index += 1
 
             val link = publication.readingOrder[index]
-            val searcher = searcherForMediaType(link.mediaType) ?:
-                return next()
+            val searcher = searcherForMediaType(link.mediaType) ?: return next()
 
             val resource = publication.get(link)
             val result = searcher.search(publication, resource, query, options)
@@ -78,70 +67,91 @@ class SimpleSearchService private constructor(
         }
 
         private fun searcherForMediaType(mediaType: MediaType): Searcher? {
-            for ((mediaTypes, searcher) in searchers) {
-                if (mediaTypes.contains(mediaType)) {
-                    return searcher
-                }
+            val searcher = searchers.firstOrNull { it.supportedMediaTypes.contains(mediaType) }
+            if (searcher == null) {
+                Timber.w("No searcher registered for media type $mediaType")
             }
-
-            Timber.w("No searcher registered for media type $mediaType")
-            return null
+            return searcher
         }
     }
 
     companion object {
-        val defaultSearchers: Map<List<MediaType>, Searcher> = mapOf(
-            listOf(MediaType.HTML, MediaType.XHTML) to HtmlSearcher()
-        )
-
-        fun createFactory(searchers: Map<List<MediaType>, Searcher> = defaultSearchers) : (Publication.Service.Context) -> SimpleSearchService =
+        fun createFactory(searchers: List<Searcher>): (Publication.Service.Context) -> SimpleSearchService =
             { context -> SimpleSearchService(searchers, context.publication) }
     }
-}
 
-/**
- * A [SimpleSearchService.Searcher] implementation for (X)HTML resources.
- */
-class HtmlSearcher(private val surroundingContextLength: Int = 50) : SimpleSearchService.Searcher {
+    /**
+     * Resource searcher specific to a media type.
+     */
+    interface Searcher {
+        val supportedMediaTypes: List<MediaType>
 
-    override suspend fun search(publication: Publication, resource: Resource, query: String, options: Set<SearchService.Option>): SearchTry<LocatorCollection> {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N)
-            return Try.success(LocatorCollection())
+        suspend fun search(publication: Publication, resource: Resource, query: String, options: Set<SearchService.Option>): SearchTry<LocatorCollection>
+    }
 
-        return try {
-            withContext(Dispatchers.IO) {
-                val html = resource.readAsString(charset = null).getOrThrow()
-                val content = Jsoup.parse(html).body().text()
+    /**
+     * Base searcher provides utilities for Searcher implementations.
+     */
+    abstract class BaseSearcher(private val surroundingContextLength: Int = 70) : Searcher {
 
-                val link = resource.link()
-                val locators = mutableListOf<Locator>()
+        abstract suspend fun textOfResource(resource: Resource): String
 
-                val iter = StringSearch(query, content)
-                var start = iter.first()
-                while (start != android.icu.text.SearchIterator.DONE) {
-                    val end = start + iter.matchLength
-
-                    var locator = link.toLocator()
-                    locator = locator.copy(
-                        locations = locator.locations.copy(
-                            progression = start.toDouble() / content.length.toDouble(),
-                        ),
-                        text = Locator.Text(
-                            highlight = content.substring(start until end),
-                            before = content.substring((start - surroundingContextLength).coerceAtLeast(0) until start),
-                            after = content.substring(end until (end + surroundingContextLength).coerceAtMost(content.length)),
-                        )
-                    )
-                    locators.add(locator)
-
-                    start = iter.next()
+        override suspend fun search(publication: Publication, resource: Resource, query: String, options: Set<SearchService.Option>): SearchTry<LocatorCollection> {
+            return try {
+                withContext(Dispatchers.IO) {
+                    val content = textOfResource(resource)
+                    val locators = findLocators(query, content, resource.link())
+                    Try.success(LocatorCollection(locators = locators))
                 }
 
-                Try.success(LocatorCollection(locators = locators))
+            } catch (e: Exception) {
+                Try.failure(SearchException.wrap(e))
+            }
+        }
+
+        private fun findLocators(query: String, content: String, link: Link): List<Locator> {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N)
+                return emptyList() // FIXME
+
+            val locators = mutableListOf<Locator>()
+
+            val iter = StringSearch(query, content)
+            var start = iter.first()
+            while (start != android.icu.text.SearchIterator.DONE) {
+                val end = start + iter.matchLength
+
+                var locator = link.toLocator()
+                locator = locator.copy(
+                    locations = locator.locations.copy(
+                        progression = start.toDouble() / content.length.toDouble(),
+                    ),
+                    text = Locator.Text(
+                        highlight = content.substring(start until end),
+                        before = content.substring((start - surroundingContextLength).coerceAtLeast(0) until start),
+                        after = content.substring(end until (end + surroundingContextLength).coerceAtMost(content.length)),
+                    )
+                )
+                locators.add(locator)
+
+                start = iter.next()
             }
 
-        } catch (e: Exception) {
-            Try.failure(SearchException.wrap(e))
+            return locators
         }
     }
+
+    /**
+     * A [SimpleSearchService.Searcher] implementation for (X)HTML resources.
+     */
+    class HtmlSearcher : BaseSearcher() {
+
+        override val supportedMediaTypes: List<MediaType>
+            get() = listOf(MediaType.HTML, MediaType.XHTML)
+
+        override suspend fun textOfResource(resource: Resource): String {
+            val html = resource.readAsString(charset = null).getOrThrow()
+            return Jsoup.parse(html).body().text()
+        }
+    }
+
 }
