@@ -64,6 +64,7 @@ sealed class SearchException(content: Content, cause: Throwable? = null) : UserE
     companion object {
         fun wrap(e: Throwable): SearchException =
             when (e) {
+                is SearchException -> e
                 is CancellationException, is Resource.Exception.Cancelled -> Cancelled
                 is Resource.Exception -> ResourceError(e)
                 is HttpException ->
