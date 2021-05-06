@@ -16,6 +16,7 @@ import org.readium.r2.shared.publication.services.positionsByReadingOrder
 import org.readium.r2.shared.util.Ref
 import org.readium.r2.shared.util.Try
 import timber.log.Timber
+import java.text.StringCharacterIterator
 
 /**
  * Base implementation of [SearchService] iterating through the content of Publication's
@@ -133,11 +134,42 @@ abstract class StringSearchService(
                     progression = progression,
                     totalProgression = totalProgression,
                 ),
-                text = Locator.Text(
-                    highlight = text.substring(range),
-                    before = text.substring((range.first - snippetLength).coerceAtLeast(0) until range.first),
-                    after = text.substring((range.last + 1) until (range.last + snippetLength).coerceAtMost(text.length)),
-                )
+                text = createSnippet(text, range),
+            )
+        }
+
+        /**
+         * Extracts a snippet from the given [text] at the provided highlight [range].
+         *
+         * Makes sure that words are not cut off at the boundaries.
+         */
+        private fun createSnippet(text: String, range: IntRange): Locator.Text {
+            val iter = StringCharacterIterator(text)
+
+            var before = ""
+            iter.index = range.first
+            var char = iter.previous()
+            var count = snippetLength
+            while (char != StringCharacterIterator.DONE && (count >= 0 || !char.isWhitespace())) {
+                before = char + before
+                count--
+                char = iter.previous()
+            }
+
+            var after = ""
+            iter.index = range.last
+            char = iter.next()
+            count = snippetLength
+            while (char != StringCharacterIterator.DONE && (count >= 0 || !char.isWhitespace())) {
+                after += char
+                count--
+                char = iter.next()
+            }
+
+            return Locator.Text(
+                highlight = text.substring(range),
+                before = before,
+                after = after,
             )
         }
 
