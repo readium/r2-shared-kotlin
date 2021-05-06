@@ -17,6 +17,7 @@ import kotlinx.coroutines.withContext
 import org.readium.r2.shared.fetcher.DefaultResourceContentExtractorFactory
 import org.readium.r2.shared.fetcher.ResourceContentExtractor
 import org.readium.r2.shared.publication.*
+import org.readium.r2.shared.publication.services.positionsByReadingOrder
 import org.readium.r2.shared.publication.services.search.SearchService.Option
 import org.readium.r2.shared.util.Ref
 import org.readium.r2.shared.util.Try
@@ -47,14 +48,13 @@ class IcuSearchService private constructor(
     override suspend fun search(query: String, options: Set<Option>): SearchTry<SearchIterator> =
         try {
             val publication = publication() ?: throw IllegalStateException("No Publication object")
-            val locale = publication.metadata.locale ?: Locale.getDefault()
-            Try.success(Iterator(locale, query, options))
+            Try.success(Iterator(publication, query, options))
 
         } catch (e: Exception) {
             Try.failure(SearchException.wrap(e))
         }
 
-    private inner class Iterator(val locale: Locale, val query: String, val options: Set<Option>) : SearchIterator {
+    private inner class Iterator(val publication: Publication, val query: String, val options: Set<Option>) : SearchIterator {
         /**
          * Index of the last reading order resource searched in.
          */
@@ -62,8 +62,7 @@ class IcuSearchService private constructor(
 
         override suspend fun next(): SearchTry<LocatorCollection?> {
             try {
-                val publication = publication()
-                if (publication == null || index >= publication.readingOrder.count() - 1) {
+                if (index >= publication.readingOrder.count() - 1) {
                     return Try.success(null)
                 }
 
@@ -78,7 +77,7 @@ class IcuSearchService private constructor(
                     return next()
                 }
 
-                val locators = findLocators(link, text)
+                val locators = findLocators(index, link, text)
                 // If no occurrences were found in the current resource, skip to the next one
                 // automatically.
                 if (locators.isEmpty()) {
@@ -92,7 +91,7 @@ class IcuSearchService private constructor(
             }
         }
 
-        private suspend fun findLocators(link: Link, text: String): List<Locator> {
+        private suspend fun findLocators(resourceIndex: Int, link: Link, text: String): List<Locator> {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N)
                 return emptyList() // FIXME
             if (text == "")
@@ -104,20 +103,8 @@ class IcuSearchService private constructor(
                 val iter = createStringSearch(text)
                 var start = iter.first()
                 while (start != android.icu.text.SearchIterator.DONE) {
-                    val end = start + iter.matchLength
-
-                    var locator = link.toLocator()
-                    locator = locator.copy(
-                        locations = locator.locations.copy(
-                            progression = start.toDouble() / text.length.toDouble(),
-                        ),
-                        text = Locator.Text(
-                            highlight = text.substring(start until end),
-                            before = text.substring((start - snippetLength).coerceAtLeast(0) until start),
-                            after = text.substring(end until (end + snippetLength).coerceAtMost(text.length)),
-                        )
-                    )
-                    locators.add(locator)
+                    val range = start until (start + iter.matchLength)
+                    locators.add(createLocator(resourceIndex, link.toLocator(), text, range))
 
                     start = iter.next()
                 }
@@ -140,6 +127,7 @@ class IcuSearchService private constructor(
             // ignore diacritics and case = primary strength
             // ignore diacritics = primary strength + caseLevel on
             // ignore case = secondary strength
+            val locale = publication.metadata.locale ?: Locale.getDefault()
             val collator = Collator.getInstance(locale) as RuleBasedCollator
             if (!diacriticSensitive) {
                 collator.strength = Collator.PRIMARY
@@ -158,6 +146,38 @@ class IcuSearchService private constructor(
                 else null
 
             return StringSearch(query, StringCharacterIterator(text), collator, breakIterator)
+        }
+
+        private suspend fun createLocator(resourceIndex: Int, resourceLocator: Locator, text: String, range: IntRange): Locator {
+            val progression = range.first.toDouble() / text.length.toDouble()
+
+            var totalProgression: Double? = null
+            val positions = positions()
+            val resourceStartTotalProg = positions.getOrNull(resourceIndex)?.firstOrNull()?.locations?.totalProgression
+            if (resourceStartTotalProg != null) {
+                val resourceEndTotalProg = positions.getOrNull(resourceIndex + 1)?.firstOrNull()?.locations?.totalProgression ?: 1.0
+                totalProgression = resourceStartTotalProg + progression * (resourceEndTotalProg - resourceStartTotalProg)
+            }
+
+            return resourceLocator.copy(
+                locations = resourceLocator.locations.copy(
+                    progression = progression,
+                    totalProgression = totalProgression,
+                ),
+                text = Locator.Text(
+                    highlight = text.substring(range),
+                    before = text.substring((range.first - snippetLength).coerceAtLeast(0) until range.first),
+                    after = text.substring((range.last + 1) until (range.last + snippetLength).coerceAtMost(text.length)),
+                )
+            )
+        }
+
+        private lateinit var _positions: List<List<Locator>>
+        private suspend fun positions(): List<List<Locator>> {
+            if (!::_positions.isInitialized) {
+                _positions = publication.positionsByReadingOrder()
+            }
+            return _positions
         }
     }
 
