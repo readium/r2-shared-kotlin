@@ -97,6 +97,10 @@ class IcuSearchService private constructor(
             if (text == "")
                 return emptyList()
 
+            val resourceTitle = publication.tableOfContents.titleMatching(link.href)
+            val resourceLocator = link.toLocator().copy(
+                title = resourceTitle ?: link.title
+            )
             val locators = mutableListOf<Locator>()
 
             withContext(Dispatchers.IO) {
@@ -104,7 +108,7 @@ class IcuSearchService private constructor(
                 var start = iter.first()
                 while (start != android.icu.text.SearchIterator.DONE) {
                     val range = start until (start + iter.matchLength)
-                    locators.add(createLocator(resourceIndex, link.toLocator(), text, range))
+                    locators.add(createLocator(resourceIndex, resourceLocator, text, range))
 
                     start = iter.next()
                 }
@@ -188,4 +192,18 @@ class IcuSearchService private constructor(
         ): (Publication.Service.Context) -> IcuSearchService =
             { context -> IcuSearchService(context.publication, snippetLength, extractorFactory) }
     }
+}
+
+private fun List<Link>.titleMatching(href: String): String? {
+    for (link in this) {
+        link.titleMatching(href)?.let { return it }
+    }
+    return null
+}
+
+private fun Link.titleMatching(targetHref: String): String? {
+    if (href.substringBeforeLast("#") == targetHref) {
+        return title
+    }
+    return children.titleMatching(targetHref)
 }
