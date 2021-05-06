@@ -16,6 +16,7 @@ import org.readium.r2.shared.fetcher.Resource
 import org.readium.r2.shared.publication.LocatorCollection
 import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.publication.ServiceFactory
+import org.readium.r2.shared.util.SuspendingCloseable
 import org.readium.r2.shared.util.Try
 import org.readium.r2.shared.util.http.HttpException
 import java.net.URLEncoder
@@ -167,7 +168,7 @@ var Publication.ServicesBuilder.searchServiceFactory: ServiceFactory?
 /**
  * Iterates through search results.
  */
-interface SearchIterator {
+interface SearchIterator : SuspendingCloseable {
 
     /**
      * Number of matches for this search, if known.
@@ -188,7 +189,7 @@ interface SearchIterator {
      * Closes any resources allocated for the search query, such as a cursor.
      * To be called when the user dismisses the search.
      */
-    suspend fun close() {}
+    override suspend fun close() {}
 
     /**
      * Performs the given operation on each result page of this [SearchIterator].
