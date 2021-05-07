@@ -154,6 +154,16 @@ val Publication.isSearchable get() =
     findService(SearchService::class) != null
 
 /**
+ * All search options available for this service.
+ *
+ * Also holds the default value for these options, which can be useful to setup the views
+ * in the search interface. If an option is missing when calling search(), its value is assumed
+ * to be the default one.
+ */
+val Publication.searchOptions: Set<SearchService.Option> get() =
+    findService(SearchService::class)?.options ?: emptySet()
+
+/**
  * Starts a new search through the publication content, with the given [query].
  */
 suspend fun Publication.search(query: String, options: Set<SearchService.Option> = emptySet()): SearchTry<SearchIterator> =
