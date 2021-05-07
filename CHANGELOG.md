@@ -4,7 +4,14 @@ All notable changes to this project will be documented in this file.
 
 **Warning:** Features marked as *experimental* may change or be removed in a future release without notice. Use with caution.
 
-<!--## [Unreleased]-->
+## [Unreleased]
+
+### Added
+
+* A new Publication `SearchService` to search through the resources' content, with two default implementations:
+    * `IcuSearchService` uses [ICU components](https://developer.android.com/reference/kotlin/android/icu/text/StringSearch) to take into account language specificities.
+    * `NaiveSearchService` performs exact matches on strings but cannot handle case and diacritic sensitivity.
+
 
 ## [2.0.0]
 
