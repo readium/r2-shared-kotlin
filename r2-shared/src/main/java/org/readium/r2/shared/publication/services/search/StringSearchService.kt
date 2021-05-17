@@ -80,6 +80,10 @@ class StringSearchService(
         }
 
     private inner class Iterator(val publication: Publication, val query: String, val options: Options, val locale: Locale) : SearchIterator {
+
+        override var resultCount: Int? = 0
+            private set
+
         /**
          * Index of the last reading order resource searched in.
          */
@@ -103,6 +107,8 @@ class StringSearchService(
                 }
 
                 val locators = findLocators(index, link, text)
+                resultCount = (resultCount ?: 0) + locators.count()
+
                 // If no occurrences were found in the current resource, skip to the next one
                 // automatically.
                 if (locators.isEmpty()) {
