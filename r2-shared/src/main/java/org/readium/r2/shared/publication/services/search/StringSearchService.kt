@@ -6,7 +6,12 @@
 
 package org.readium.r2.shared.publication.services.search
 
+import android.icu.text.BreakIterator
+import android.icu.text.Collator
+import android.icu.text.RuleBasedCollator
+import android.icu.text.StringSearch
 import android.os.Build
+import androidx.annotation.RequiresApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.readium.r2.shared.fetcher.DefaultResourceContentExtractorFactory
@@ -18,6 +23,7 @@ import org.readium.r2.shared.util.Ref
 import org.readium.r2.shared.util.Try
 import timber.log.Timber
 import java.text.StringCharacterIterator
+import java.util.*
 
 /**
  * Base implementation of [SearchService] iterating through the content of Publication's
@@ -27,43 +33,53 @@ import java.text.StringCharacterIterator
  * implementations to retrieve the pure text content from markups (e.g. HTML) or binary (e.g. PDF)
  * resources.
  *
- * Subclasses must implement the actual text search algorithm.
+ * The actual search is implemented by the provided [searchAlgorithm].
  */
-abstract class StringSearchService(
-    val publication: Ref<Publication>,
-    val snippetLength: Int,
-    val extractorFactory: ResourceContentExtractor.Factory,
+class StringSearchService(
+    private val publication: Ref<Publication>,
+    val language: String?,
+    private val snippetLength: Int,
+    private val searchAlgorithm: Algorithm,
+    private val extractorFactory: ResourceContentExtractor.Factory,
 ) : SearchService {
 
     companion object {
         fun createDefaultFactory(
             snippetLength: Int = 200,
-            extractorFactory: ResourceContentExtractor.Factory = DefaultResourceContentExtractorFactory()
+            searchAlgorithm: Algorithm? = null,
+            extractorFactory: ResourceContentExtractor.Factory = DefaultResourceContentExtractorFactory(),
         ): (Publication.Service.Context) -> StringSearchService =
             { context ->
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    IcuSearchService(context.publication, snippetLength, extractorFactory)
-                } else {
-                    NaiveSearchService(context.publication, snippetLength, extractorFactory)
-                }
+                StringSearchService(
+                    publication = context.publication,
+                    language = context.manifest.metadata.languages.firstOrNull(),
+                    snippetLength = snippetLength,
+                    searchAlgorithm = searchAlgorithm
+                        ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) IcuAlgorithm() else NaiveAlgorithm(),
+                    extractorFactory = extractorFactory
+                )
             }
     }
 
-    /**
-     * Find occurrence ranges of the provided [query] in a resource's [text] content.
-     */
-    protected abstract fun findRanges(text: String, query: String, options: Options): List<IntRange>
+    private val locale: Locale = language?.let { Locale.forLanguageTag(it) } ?: Locale.getDefault()
+
+    override val options: Options = searchAlgorithm.options
+        .copy(language = locale.toLanguageTag())
 
     override suspend fun search(query: String, options: Options?): SearchTry<SearchIterator> =
         try {
-            val publication = publication() ?: throw IllegalStateException("No Publication object")
-            Try.success(Iterator(publication, query, options ?: Options()))
+            Try.success(Iterator(
+                publication = publication() ?: throw IllegalStateException("No Publication object"),
+                query = query,
+                options = options ?: Options(),
+                locale = options?.language?.let { Locale.forLanguageTag(it) } ?: locale,
+            ))
 
         } catch (e: Exception) {
             Try.failure(SearchException.wrap(e))
         }
 
-    private inner class Iterator(val publication: Publication, val query: String, val options: Options) : SearchIterator {
+    private inner class Iterator(val publication: Publication, val query: String, val options: Options, val locale: Locale) : SearchIterator {
         /**
          * Index of the last reading order resource searched in.
          */
@@ -111,7 +127,7 @@ abstract class StringSearchService(
             val locators = mutableListOf<Locator>()
 
             withContext(Dispatchers.IO) {
-                for (range in findRanges(text = text, query = query, options)) {
+                for (range in searchAlgorithm.findRanges(query = query, options = options, text = text, locale = locale)) {
                     locators.add(createLocator(resourceIndex, resourceLocator, text, range))
                 }
             }
@@ -180,6 +196,101 @@ abstract class StringSearchService(
                 _positions = publication.positionsByReadingOrder()
             }
             return _positions
+        }
+    }
+
+    /** Implements the actual search algorithm in sanitized text content. */
+    interface Algorithm {
+
+        /**
+         * Default value for the search options available with this algorithm.
+         * If an option does not have a value, it is not supported by the algorithm.
+         */
+        val options: Options
+
+        /**
+         * Finds all the ranges of occurrences of the given [query] in the [text].
+         */
+        suspend fun findRanges(query: String, options: Options, text: String, locale: Locale): List<IntRange>
+    }
+
+    /**
+     * Implementation of a search [Algorithm] using ICU components to perform the actual search
+     * while taking into account languages specificities.
+     */
+    @RequiresApi(Build.VERSION_CODES.N)
+    class IcuAlgorithm : Algorithm {
+
+        override val options: Options = Options(
+            caseSensitive = false,
+            diacriticSensitive = false,
+            wholeWord = false,
+        )
+
+        override suspend fun findRanges(query: String, options: Options, text: String, locale: Locale): List<IntRange> {
+            val ranges = mutableListOf<IntRange>()
+            val iter = createStringSearch(query, options, text, locale)
+            var start = iter.first()
+            while (start != android.icu.text.SearchIterator.DONE) {
+                ranges.add(start until (start + iter.matchLength))
+                start = iter.next()
+            }
+            return ranges
+        }
+
+        private fun createStringSearch(query: String, options: Options, text: String, locale: Locale): StringSearch {
+            val caseSensitive = options.caseSensitive ?: false
+            var diacriticSensitive = options.diacriticSensitive ?: false
+            val wholeWord = options.wholeWord ?: false
+
+            // Because of an issue (see FIXME below), we can't have case sensitivity without also
+            // enabling diacritic sensitivity.
+            diacriticSensitive = diacriticSensitive || caseSensitive
+
+            // http://userguide.icu-project.org/collation/customization
+            // ignore diacritics and case = primary strength
+            // ignore diacritics = primary strength + caseLevel on
+            // ignore case = secondary strength
+            val collator = Collator.getInstance(locale) as RuleBasedCollator
+            if (!diacriticSensitive) {
+                collator.strength = Collator.PRIMARY
+                if (caseSensitive) {
+                    // FIXME: This doesn't seem to work despite the documentation indicating:
+                    // > To ignore accents but take cases into account, set strength to primary and case level to on.
+                    // > http://userguide.icu-project.org/collation/customization
+                    collator.isCaseLevel = true
+                }
+            } else if (!caseSensitive) {
+                collator.strength = Collator.SECONDARY
+            }
+
+            val breakIterator: BreakIterator? =
+                if (wholeWord) BreakIterator.getWordInstance()
+                else null
+
+            return StringSearch(query, StringCharacterIterator(text), collator, breakIterator)
+        }
+    }
+
+    /**
+     * A naive search [Algorithm] performing exact matches on strings.
+     *
+     * There are no safe ways to perform case insensitive search using [String.indexOf] with
+     * all languages, so this [Algorithm] does not have any options. Use [IcuAlgorithm] for
+     * better results.
+     */
+    class NaiveAlgorithm : Algorithm {
+
+        override val options: Options get() = Options()
+
+        override suspend fun findRanges(query: String, options: Options, text: String, locale: Locale): List<IntRange> {
+            val ranges = mutableListOf<IntRange>()
+            var index: Int = text.indexOf(query)
+            while (index >= 0) {
+                ranges.add(index until (index + query.length))
+                index = text.indexOf(query, index + 1)
+            }
+            return ranges
         }
     }
 }

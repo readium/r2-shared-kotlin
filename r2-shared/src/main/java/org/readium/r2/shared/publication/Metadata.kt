@@ -140,12 +140,6 @@ data class Metadata(
     val title: String get() = localizedTitle.string
 
     /**
-     * Returns the Locale for the default language.
-     */
-    val locale: Locale? get() =
-        languages.firstOrNull()?.let { Locale.forLanguageTag(it) }
-
-    /**
      * Returns the default translation string for the [localizedSortAs].
      */
     val sortAs: String? get() = localizedSortAs?.string
