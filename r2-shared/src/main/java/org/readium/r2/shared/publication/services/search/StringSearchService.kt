@@ -13,6 +13,7 @@ import org.readium.r2.shared.fetcher.DefaultResourceContentExtractorFactory
 import org.readium.r2.shared.fetcher.ResourceContentExtractor
 import org.readium.r2.shared.publication.*
 import org.readium.r2.shared.publication.services.positionsByReadingOrder
+import org.readium.r2.shared.publication.services.search.SearchService.Options
 import org.readium.r2.shared.util.Ref
 import org.readium.r2.shared.util.Try
 import timber.log.Timber
@@ -51,18 +52,18 @@ abstract class StringSearchService(
     /**
      * Find occurrence ranges of the provided [query] in a resource's [text] content.
      */
-    protected abstract fun findRanges(text: String, query: String, options: Set<SearchService.Option>): List<IntRange>
+    protected abstract fun findRanges(text: String, query: String, options: Options): List<IntRange>
 
-    override suspend fun search(query: String, options: Set<SearchService.Option>): SearchTry<SearchIterator> =
+    override suspend fun search(query: String, options: Options?): SearchTry<SearchIterator> =
         try {
             val publication = publication() ?: throw IllegalStateException("No Publication object")
-            Try.success(Iterator(publication, query, options))
+            Try.success(Iterator(publication, query, options ?: Options()))
 
         } catch (e: Exception) {
             Try.failure(SearchException.wrap(e))
         }
 
-    private inner class Iterator(val publication: Publication, val query: String, val options: Set<SearchService.Option>) : SearchIterator {
+    private inner class Iterator(val publication: Publication, val query: String, val options: Options) : SearchIterator {
         /**
          * Index of the last reading order resource searched in.
          */

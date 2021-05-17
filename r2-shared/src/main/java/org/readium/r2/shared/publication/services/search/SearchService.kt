@@ -19,8 +19,6 @@ import org.readium.r2.shared.publication.ServiceFactory
 import org.readium.r2.shared.util.SuspendingCloseable
 import org.readium.r2.shared.util.Try
 import org.readium.r2.shared.util.http.HttpException
-import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
 
 typealias SearchTry<SuccessT> = Try<SuccessT, SearchException>
 
@@ -86,65 +84,50 @@ sealed class SearchException(content: Content, cause: Throwable? = null) : UserE
 interface SearchService : Publication.Service {
 
     /**
-     * Represents an option and its current value supported by a service.
+     * Holds the available search options and their current values.
      *
-     * Implementation note: key and rawValue are opened to be able to use @Parcelize in Custom case.
+     * @param caseSensitive Whether the search will differentiate between capital and lower-case
+     *        letters.
+     * @param diacriticSensitive Whether the search will differentiate between letters with accents
+     *        or not.
+     * @param wholeWord Whether the query terms will match full words and not parts of a word.
+     * @param exact Matches results exactly as stated in the query terms, taking into account stop
+     *        words, order and spelling.
+     * @param language BCP 47 language code overriding the publication's language.
+     * @param regularExpression The search string is treated as a regular expression. The particular
+     *        flavor of regex depends on the service.
+     * @param otherOptions Map of custom options implemented by a Search Service which are not
+     *        officially recognized by Readium.
      */
-    sealed class Option(open val key: String, protected open val rawValue: Any?) : Parcelable {
-
-        val value: String? get() =
-            rawValue?.toString()?.takeIf { it.isNotBlank() }
-
+    @Parcelize
+    data class Options(
+        val caseSensitive: Boolean? = null,
+        val diacriticSensitive: Boolean? = null,
+        val wholeWord: Boolean? = null,
+        val exact: Boolean? = null,
+        val language: String? = null,
+        val regularExpression: Boolean? = null,
+        val otherOptions: Map<String, String> = emptyMap()
+    ) : Parcelable {
         /**
-         * Whether the search will differentiate between capital and lower-case letters.
+         * Syntactic sugar to access the [otherOptions] values by subscripting [Options] directly.
          */
-        @Parcelize class CaseSensitive(val on: Boolean) : Option("case-sensitive", on)
-
-        /**
-         * Whether the search will differentiate between letters with accents or not.
-         */
-        @Parcelize class DiacriticSensitive(val on: Boolean) : Option("diacritic-sensitive", on)
-
-        /**
-         * Whether the query terms will match full words and not parts of a word.
-         */
-        @Parcelize class WholeWord(val on: Boolean) : Option("whole-word", on)
-
-        /**
-         * Matches results similar but not identical to the query, such as reordered or words with a
-         * related stem. For example, "banana split" would match "I love banana split" but also
-         * "splitting all the bananas". When close variants are enabled, surround terms with double
-         * quotes for an exact match.
-         */
-        @Parcelize class CloseVariants(val on: Boolean) : Option("close-variants", on)
-
-        /**
-         * Matches results with typos or similar spelling.
-         *
-         * See https://en.wikipedia.org/wiki/Approximate_string_matching
-         */
-        @Parcelize class Fuzzy(val on: Boolean) : Option("fuzzy", on)
-
-        /**
-         * A custom option implemented by a Search Service which is not officially recognized by
-         * Readium.
-         */
-        @Parcelize class Custom(override val key: String, override val rawValue: String) : Option(key, rawValue)
+        operator fun get(key: String): String? = otherOptions[key]
     }
 
     /**
-     * All search options available for this service.
+     * Default value for the search options of this service.
      *
-     * Also holds the default value for these options, which can be useful to setup the views
-     * in the search interface. If an option is missing when calling search(), its value is assumed
-     * to be the default one.
+     * If an option does not have a value, it is not supported by the service.
      */
-    val options: Set<Option>
+    val options: Options
 
     /**
      * Starts a new search through the publication content, with the given [query].
+     *
+     * If an option is nil when calling search(), its value is assumed to be the default one.
      */
-    suspend fun search(query: String, options: Set<Option> = emptySet()): SearchTry<SearchIterator>
+    suspend fun search(query: String, options: Options? = null): SearchTry<SearchIterator>
 }
 
 /**
@@ -154,19 +137,18 @@ val Publication.isSearchable get() =
     findService(SearchService::class) != null
 
 /**
- * All search options available for this service.
- *
- * Also holds the default value for these options, which can be useful to setup the views
- * in the search interface. If an option is missing when calling search(), its value is assumed
- * to be the default one.
+ * Default value for the search options of this publication.
  */
-val Publication.searchOptions: Set<SearchService.Option> get() =
-    findService(SearchService::class)?.options ?: emptySet()
+val Publication.searchOptions: SearchService.Options get() =
+    findService(SearchService::class)?.options ?: SearchService.Options()
 
 /**
  * Starts a new search through the publication content, with the given [query].
+ *
+ * If an option is nil when calling [search], its value is assumed to be the default one for the
+ * search service.
  */
-suspend fun Publication.search(query: String, options: Set<SearchService.Option> = emptySet()): SearchTry<SearchIterator> =
+suspend fun Publication.search(query: String, options: SearchService.Options? = null): SearchTry<SearchIterator> =
     findService(SearchService::class)?.search(query, options)
         ?: Try.failure(SearchException.PublicationNotSearchable)
 
@@ -185,6 +167,8 @@ interface SearchIterator : SuspendingCloseable {
      *
      * Depending on the search algorithm, it may not be possible to know the result count until
      * reaching the end of the publication.
+     *
+     * The count might be updated after each call to [next].
      */
     val resultCount: Int? get() = null
 
@@ -221,6 +205,3 @@ interface SearchIterator : SuspendingCloseable {
         }
     }
 }
-
-inline fun <reified T: SearchService.Option> Set<SearchService.Option>.get(): T? =
-    firstOrNull { it is T } as? T

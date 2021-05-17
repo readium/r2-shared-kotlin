@@ -8,7 +8,7 @@ package org.readium.r2.shared.publication.services.search
 
 import org.readium.r2.shared.fetcher.ResourceContentExtractor
 import org.readium.r2.shared.publication.Publication
-import org.readium.r2.shared.publication.services.search.SearchService.Option
+import org.readium.r2.shared.publication.services.search.SearchService.Options
 import org.readium.r2.shared.util.Ref
 
 /**
@@ -24,11 +24,9 @@ class NaiveSearchService(
     extractorFactory: ResourceContentExtractor.Factory,
 ) : StringSearchService(publication, snippetLength, extractorFactory) {
 
-    /**
-     */
-    override val options: Set<Option> get() = setOf()
+    override val options: Options get() = Options()
 
-    override fun findRanges(text: String, query: String, options: Set<Option>): List<IntRange> {
+    override fun findRanges(text: String, query: String, options: Options): List<IntRange> {
         val ranges = mutableListOf<IntRange>()
         var index: Int = text.indexOf(query)
         while (index >= 0) {

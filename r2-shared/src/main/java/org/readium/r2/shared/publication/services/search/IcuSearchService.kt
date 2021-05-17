@@ -14,7 +14,7 @@ import android.os.Build
 import androidx.annotation.RequiresApi
 import org.readium.r2.shared.fetcher.ResourceContentExtractor
 import org.readium.r2.shared.publication.Publication
-import org.readium.r2.shared.publication.services.search.SearchService.Option
+import org.readium.r2.shared.publication.services.search.SearchService.Options
 import org.readium.r2.shared.util.Ref
 import java.text.StringCharacterIterator
 import java.util.*
@@ -30,15 +30,15 @@ class IcuSearchService(
     extractorFactory: ResourceContentExtractor.Factory,
 ) : StringSearchService(publication, snippetLength, extractorFactory) {
 
-    override val options: Set<Option> get() = setOf(
-        Option.CaseSensitive(false),
-        Option.DiacriticSensitive(false),
-        Option.WholeWord(false),
+    override val options: Options = Options(
+        caseSensitive = false,
+        diacriticSensitive = false,
+        wholeWord = false,
     )
 
-    override fun findRanges(text: String, query: String, options: Set<Option>): List<IntRange> {
+    override fun findRanges(text: String, query: String, options: Options): List<IntRange> {
         val ranges = mutableListOf<IntRange>()
-        val iter = createStringSearch(text, query)
+        val iter = createStringSearch(text, query, options)
         var start = iter.first()
         while (start != android.icu.text.SearchIterator.DONE) {
             ranges.add(start until (start + iter.matchLength))
@@ -49,10 +49,10 @@ class IcuSearchService(
 
     private val locale: Locale by lazy { publication()?.metadata?.locale ?: Locale.getDefault() }
 
-    private fun createStringSearch(text: String, query: String): StringSearch {
-        val caseSensitive = options.get<Option.CaseSensitive>()?.on ?: false
-        var diacriticSensitive = options.get<Option.DiacriticSensitive>()?.on ?: false
-        val wholeWord = options.get<Option.WholeWord>()?.on ?: false
+    private fun createStringSearch(text: String, query: String, options: Options): StringSearch {
+        val caseSensitive = options.caseSensitive ?: false
+        var diacriticSensitive = options.diacriticSensitive ?: false
+        val wholeWord = options.wholeWord ?: false
 
         // Because of an issue (see FIXME below), we can't have case sensitivity without also
         // enabling diacritic sensitivity.
