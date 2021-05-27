@@ -14,6 +14,7 @@ import android.os.Build
 import androidx.annotation.RequiresApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.readium.r2.shared.Search
 import org.readium.r2.shared.fetcher.DefaultResourceContentExtractorFactory
 import org.readium.r2.shared.fetcher.ResourceContentExtractor
 import org.readium.r2.shared.publication.*
@@ -35,6 +36,7 @@ import java.util.*
  *
  * The actual search is implemented by the provided [searchAlgorithm].
  */
+@Search
 class StringSearchService(
     private val publication: Ref<Publication>,
     val language: String?,

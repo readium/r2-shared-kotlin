@@ -10,12 +10,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
 import org.jsoup.parser.Parser
+import org.readium.r2.shared.Search
 import org.readium.r2.shared.util.Try
 import org.readium.r2.shared.util.mediatype.MediaType
 
 /**
  * Extracts pure content from a marked-up (e.g. HTML) or binary (e.g. PDF) resource.
  */
+@Search
 interface ResourceContentExtractor {
 
     /**
@@ -33,6 +35,7 @@ interface ResourceContentExtractor {
     }
 }
 
+@Search
 class DefaultResourceContentExtractorFactory : ResourceContentExtractor.Factory {
 
     override suspend fun createExtractor(resource: Resource): ResourceContentExtractor? =
@@ -45,6 +48,7 @@ class DefaultResourceContentExtractorFactory : ResourceContentExtractor.Factory 
 /**
  * [ResourceContentExtractor] implementation for HTML resources.
  */
+@Search
 class HtmlResourceContentExtractor : ResourceContentExtractor {
 
     override suspend fun extractText(resource: Resource): ResourceTry<String> = withContext(Dispatchers.IO) {

@@ -11,6 +11,7 @@ import androidx.annotation.StringRes
 import kotlinx.coroutines.CancellationException
 import kotlinx.parcelize.Parcelize
 import org.readium.r2.shared.R
+import org.readium.r2.shared.Search
 import org.readium.r2.shared.UserException
 import org.readium.r2.shared.fetcher.Resource
 import org.readium.r2.shared.publication.LocatorCollection
@@ -20,11 +21,13 @@ import org.readium.r2.shared.util.SuspendingCloseable
 import org.readium.r2.shared.util.Try
 import org.readium.r2.shared.util.http.HttpException
 
+@Search
 typealias SearchTry<SuccessT> = Try<SuccessT, SearchException>
 
 /**
  * Represents an error which might occur during a search activity.
  */
+@Search
 sealed class SearchException(content: Content, cause: Throwable? = null) : UserException(content, cause) {
     constructor(@StringRes userMessageId: Int, vararg args: Any, cause: Throwable? = null)
         : this(Content(userMessageId, *args), cause)
@@ -81,6 +84,7 @@ sealed class SearchException(content: Content, cause: Throwable? = null) : UserE
 /**
  * Provides a way to search terms in a publication.
  */
+@Search
 interface SearchService : Publication.Service {
 
     /**
@@ -133,12 +137,14 @@ interface SearchService : Publication.Service {
 /**
  * Indicates whether the content of this publication can be searched.
  */
+@Search
 val Publication.isSearchable get() =
     findService(SearchService::class) != null
 
 /**
  * Default value for the search options of this publication.
  */
+@Search
 val Publication.searchOptions: SearchService.Options get() =
     findService(SearchService::class)?.options ?: SearchService.Options()
 
@@ -148,11 +154,13 @@ val Publication.searchOptions: SearchService.Options get() =
  * If an option is nil when calling [search], its value is assumed to be the default one for the
  * search service.
  */
+@Search
 suspend fun Publication.search(query: String, options: SearchService.Options? = null): SearchTry<SearchIterator> =
     findService(SearchService::class)?.search(query, options)
         ?: Try.failure(SearchException.PublicationNotSearchable)
 
 /** Factory to build a [SearchService] */
+@Search
 var Publication.ServicesBuilder.searchServiceFactory: ServiceFactory?
     get() = get(SearchService::class)
     set(value) = set(SearchService::class, value)
@@ -160,6 +168,7 @@ var Publication.ServicesBuilder.searchServiceFactory: ServiceFactory?
 /**
  * Iterates through search results.
  */
+@Search
 interface SearchIterator : SuspendingCloseable {
 
     /**

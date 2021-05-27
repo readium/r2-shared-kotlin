@@ -17,6 +17,7 @@ import org.json.JSONObject
 import org.readium.r2.shared.BuildConfig.DEBUG
 import org.readium.r2.shared.R
 import org.readium.r2.shared.ReadiumCSSName
+import org.readium.r2.shared.Search
 import org.readium.r2.shared.UserException
 import org.readium.r2.shared.extensions.HashAlgorithm
 import org.readium.r2.shared.extensions.hash
@@ -345,6 +346,7 @@ class Publication(
      */
     class ServicesBuilder private constructor(private var serviceFactories: MutableMap<String, ServiceFactory>) {
 
+        @OptIn(Search::class)
         @Suppress("UNCHECKED_CAST")
         constructor(
             contentProtection: ServiceFactory? = null,
