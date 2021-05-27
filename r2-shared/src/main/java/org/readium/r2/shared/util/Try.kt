@@ -10,32 +10,46 @@
 package org.readium.r2.shared.util
 
 /** A [Result] type which can be used as a return type. */
-class Try<out Success, out Failure: Throwable> private constructor(private val success: Success?, private val failure: Failure?) {
+sealed class Try<out Success, out Failure: Throwable> {
 
     companion object {
         /** Returns an instance that encapsulates the given value as successful value. */
-        fun <Success> success(success: Success) = Try(success, null)
+        fun <Success> success(success: Success): Try<Success, Nothing> = Success(success)
 
         /** Returns the encapsulated Throwable exception if this instance represents failure or null if it is success. */
-        fun <Failure: Throwable> failure(failure: Failure) = Try(null, failure)
+        fun <Failure: Throwable> failure(failure: Failure): Try<Nothing, Failure> = Failure(failure)
     }
 
-    val isSuccess get() = success != null
-
-    val isFailure get() = failure != null
+    abstract val isSuccess: Boolean
+    abstract val isFailure: Boolean
 
     /**
      * Returns the encapsulated value if this instance represents success
      * or throws the encapsulated Throwable exception if it is failure.
      */
-    fun getOrThrow() = success
-        ?: throw failure!!
+    abstract fun getOrThrow(): Success
 
     /** Returns the encapsulated value if this instance represents success or null if it is failure. */
-    fun getOrNull(): Success? = success
+    abstract fun getOrNull(): Success?
 
     /** Returns the encapsulated [Throwable] exception if this instance represents failure or null if it is success. */
-    fun exceptionOrNull(): Failure? = failure
+    abstract fun exceptionOrNull(): Failure?
+
+    class Success<out S, out F : Throwable>(val value: S) : Try<S, F>() {
+        override val isSuccess: Boolean get() = true
+        override val isFailure: Boolean get() = false
+        override fun getOrThrow(): S = value
+        override fun getOrNull(): S? = value
+        override fun exceptionOrNull(): F? = null
+    }
+
+    class Failure<out S, out F : Throwable>(val exception: F) : Try<S, F>() {
+        override val isSuccess: Boolean get() = false
+        override val isFailure: Boolean get() = true
+        override fun getOrThrow(): S { throw exception }
+        override fun getOrNull(): S? = null
+        override fun exceptionOrNull(): F? = exception
+    }
 
     /**
      * Returns the encapsulated result of the given transform function applied to the encapsulated value
@@ -46,6 +60,16 @@ class Try<out Success, out Failure: Throwable> private constructor(private val s
             success(transform(getOrThrow()))
         else
             failure(exceptionOrNull()!!)
+
+    /**
+     * Returns the encapsulated result of the given transform function applied to the encapsulated failure
+     * if this instance represents failure or the original encapsulated success value if it is a success.
+     */
+    inline fun <F : Throwable> mapFailure(transform: (value: Failure) -> F): Try<Success, F> =
+        if (isSuccess)
+            success(getOrThrow())
+        else
+            failure(transform(exceptionOrNull()!!))
 
     /**
      * Returns the result of [onSuccess] for the encapsulated value if this instance represents success or
@@ -74,22 +98,6 @@ class Try<out Success, out Failure: Throwable> private constructor(private val s
         if (isFailure) action(exceptionOrNull()!!)
         return this
     }
-
-    inline fun <R, S, F: Throwable> Try<S, F>.flatMap(transform: (value: S) -> Try<R, F>): Try<R, F> =
-        if (isSuccess)
-            transform(getOrThrow())
-        else
-            Try.failure(exceptionOrNull()!!)
-
-    /**
-     * Returns the encapsulated result of the given transform function applied to the encapsulated |Throwable] exception
-     * if this instance represents failure or the original encapsulated value if it is success.
-     */
-    inline fun <R : Throwable> recover(transform: (exception: Failure) -> R): Try<Success, R> =
-        if (isFailure)
-            Try.failure(transform(exceptionOrNull()!!))
-        else
-            Try.success(getOrThrow())
 }
 
 /**
@@ -110,3 +118,29 @@ inline fun <R, S : R, F : Throwable> Try<S, F>.getOrElse(onFailure: (exception: 
         getOrThrow()
     else
         onFailure(exceptionOrNull()!!)
+
+inline fun <R, S, F: Throwable> Try<S, F>.flatMap(transform: (value: S) -> Try<R, F>): Try<R, F> =
+    if (isSuccess)
+        transform(getOrThrow())
+    else
+        Try.failure(exceptionOrNull()!!)
+
+/**
+ * Returns the encapsulated result of the given transform function applied to the encapsulated |Throwable] exception
+ * if this instance represents failure or the original encapsulated value if it is success.
+ */
+inline fun <R, S : R, F : Throwable> Try<S, F>.recover(transform: (exception: F) -> R): Try<R, Nothing> =
+    if (isSuccess)
+        Try.success(getOrThrow())
+    else
+        Try.success(transform(exceptionOrNull()!!))
+
+/**
+ * Returns the encapsulated result of the given transform function applied to the encapsulated |Throwable] exception
+ * if this instance represents failure or the original encapsulated value if it is success.
+ */
+inline fun <R, S : R, F : Throwable> Try<S, F>.tryRecover(transform: (exception: F) -> Try<R, F>): Try<R, F> =
+    if (isSuccess)
+        Try.success(getOrThrow())
+    else
+        transform(exceptionOrNull()!!)

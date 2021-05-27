@@ -9,7 +9,6 @@
 
 package org.readium.r2.shared.publication
 
-import android.content.Context
 import android.net.Uri
 import androidx.annotation.StringRes
 import kotlinx.coroutines.GlobalScope
@@ -18,6 +17,7 @@ import org.json.JSONObject
 import org.readium.r2.shared.BuildConfig.DEBUG
 import org.readium.r2.shared.R
 import org.readium.r2.shared.ReadiumCSSName
+import org.readium.r2.shared.Search
 import org.readium.r2.shared.UserException
 import org.readium.r2.shared.extensions.HashAlgorithm
 import org.readium.r2.shared.extensions.hash
@@ -26,12 +26,12 @@ import org.readium.r2.shared.extensions.toUrlOrNull
 import org.readium.r2.shared.fetcher.EmptyFetcher
 import org.readium.r2.shared.fetcher.Fetcher
 import org.readium.r2.shared.fetcher.Resource
-import org.readium.r2.shared.format.MediaType
+import org.readium.r2.shared.util.mediatype.MediaType
 import org.readium.r2.shared.publication.epub.listOfAudioClips
 import org.readium.r2.shared.publication.epub.listOfVideoClips
-import org.readium.r2.shared.publication.services.CoverService
-import org.readium.r2.shared.publication.services.PositionsService
-import org.readium.r2.shared.publication.services.positions
+import org.readium.r2.shared.publication.services.*
+import org.readium.r2.shared.publication.services.search.SearchService
+import org.readium.r2.shared.util.Ref
 import timber.log.Timber
 import java.net.URL
 import java.net.URLEncoder
@@ -58,8 +58,6 @@ typealias PublicationId = String
  * The default implementation returns Resource.Exception.NotFound for all HREFs.
  * @param servicesBuilder Holds the list of service factories used to create the instances of
  * Publication.Service attached to this Publication.
- * @param type The kind of publication it is ( EPUB, CBZ, ... )
- * @param version The version of the publication, if the type needs any.
  * @param positionsFactory Factory used to build lazily the [positions].
  */
 class Publication(
@@ -78,8 +76,19 @@ class Publication(
     @Deprecated("This will be removed in a future version. Use [Format.of] to check the format of a publication.", level = DeprecationLevel.ERROR)
     var internalData: MutableMap<String, String> = mutableMapOf()
 ) {
-    private val _services: List<Service> = servicesBuilder.build(Service.Context(manifest, fetcher))
-    private val _manifest = manifest.copy(links = manifest.links + _services.map(Service::links).flatten())
+    private val _services: List<Service>
+    private val _manifest: Manifest
+
+    init {
+        // We use a Ref<Publication> instead of passing directly `this` to the services to prevent
+        // them from using the Publication before it is fully initialized.
+        val pubRef = Ref<Publication>()
+
+        _services = servicesBuilder.build(Service.Context(pubRef, manifest, fetcher))
+        _manifest = manifest.copy(links = manifest.links + _services.map(Service::links).flatten())
+
+        pubRef.ref = this
+    }
 
     // Shortcuts to manifest properties
 
@@ -223,16 +232,6 @@ class Publication(
     }
 
     /**
-     * Returns the [ContentLayout] for the default language.
-     */
-    val contentLayout: ContentLayout get() = metadata.contentLayout
-
-    /**
-     * Returns the [ContentLayout] for the given [language].
-     */
-    fun contentLayoutForLanguage(language: String?) = metadata.contentLayoutForLanguage(language)
-
-    /**
      * Returns the [links] of the first child [PublicationCollection] with the given role, or an
      * empty list.
      */
@@ -293,8 +292,16 @@ class Publication(
 
         /**
          * Container for the context from which a service is created.
+         *
+         * @param publication Reference to the parent publication.
+         *        Don't store directly the referenced publication, always access it through the
+         *        [Ref] property. The publication won't be set when the service is created or when
+         *        calling [Service.links], but you can use it during regular service operations. If
+         *        you need to initialize your service differently depending on the publication, use
+         *        `manifest`.
          */
         class Context(
+            val publication: Ref<Publication>,
             val manifest: Manifest,
             val fetcher: Fetcher
         )
@@ -326,6 +333,10 @@ class Publication(
          *
          * Called by [Publication.get] for each request.
          *
+         * Warning: If you need to request one of the publication resources to answer the request,
+         * use the [Fetcher] provided by the [Publication.Service.Context] instead of
+         * [Publication.get], otherwise it will trigger an infinite loop.
+         *
          * @return The [Resource] containing the response, or null if the service doesn't recognize
          *         this request.
          */
@@ -343,15 +354,22 @@ class Publication(
      *
      * Provides helpers to manipulate the list of services of a [Publication].
      */
-    class ServicesBuilder(internal var serviceFactories: MutableMap<String, ServiceFactory>) {
+    class ServicesBuilder private constructor(private var serviceFactories: MutableMap<String, ServiceFactory>) {
 
+        @OptIn(Search::class)
         @Suppress("UNCHECKED_CAST")
         constructor(
+            contentProtection: ServiceFactory? = null,
+            cover: ServiceFactory? = null,
+            locator: ServiceFactory? = { DefaultLocatorService(it.manifest.readingOrder, it.publication) },
             positions: ServiceFactory? = null,
-            cover: ServiceFactory? = null
+            search: ServiceFactory? = null,
         ) : this(mapOf(
+            ContentProtectionService::class.java.simpleName to contentProtection,
+            CoverService::class.java.simpleName to cover,
+            LocatorService::class.java.simpleName to locator,
             PositionsService::class.java.simpleName to positions,
-            CoverService::class.java.simpleName to cover
+            SearchService::class.java.simpleName to search,
         ).filterValues { it != null }.toMutableMap() as MutableMap<String, ServiceFactory>)
 
         /** Builds the actual list of publication services to use in a Publication. */
@@ -398,28 +416,28 @@ class Publication(
         /**
          * The file format could not be recognized by any parser.
          */
-        object UnsupportedFormat : OpeningException(R.string.r2_shared_publication_opening_exception_unsupported_format)
+        class UnsupportedFormat(cause: Throwable? = null) : OpeningException(R.string.r2_shared_publication_opening_exception_unsupported_format, cause)
 
         /**
          * The publication file was not found on the file system.
          */
-        object NotFound : OpeningException(R.string.r2_shared_publication_opening_exception_not_found)
+        class NotFound(cause: Throwable? = null) : OpeningException(R.string.r2_shared_publication_opening_exception_not_found, cause)
 
         /**
          * The publication parser failed with the given underlying exception.
          */
-        class ParsingFailed(cause: Throwable) : OpeningException(R.string.r2_shared_publication_opening_exception_parsing_failed, cause)
+        class ParsingFailed(cause: Throwable? = null) : OpeningException(R.string.r2_shared_publication_opening_exception_parsing_failed, cause)
 
         /**
          * We're not allowed to open the publication at all, for example because it expired.
          */
-        class Forbidden(cause: Throwable?) : OpeningException(R.string.r2_shared_publication_opening_exception_forbidden, cause)
+        class Forbidden(cause: Throwable? = null) : OpeningException(R.string.r2_shared_publication_opening_exception_forbidden, cause)
 
         /**
          * The publication can't be opened at the moment, for example because of a networking error.
          * This error is generally temporary, so the operation may be retried or postponed.
          */
-        class Unavailable(cause: Throwable?) : OpeningException(R.string.r2_shared_publication_opening_exception_unavailable, cause)
+        class Unavailable(cause: Throwable? = null) : OpeningException(R.string.r2_shared_publication_opening_exception_unavailable, cause)
 
         /**
          * The provided credentials are incorrect and we can't open the publication in a
@@ -471,8 +489,8 @@ class Publication(
     @Deprecated("Renamed to [listOfVideoClips]", ReplaceWith("listOfVideoClips"))
     val listOfVideos: List<Link> = listOfVideoClips
 
-    @Deprecated("Renamed to [resourceWithHref]", ReplaceWith("resourceWithHref(href)"))
-    fun resource(href: String): Link? = resourceWithHref(href)
+    @Deprecated("Renamed to [linkWithHref]", ReplaceWith("linkWithHref(href)"))
+    fun resource(href: String): Link? = linkWithHref(href)
 
     @Deprecated("Refactored as a property", ReplaceWith("baseUrl"))
     fun baseUrl(): URL? = baseUrl
@@ -524,5 +542,11 @@ class Publication(
 
     @Deprecated("Use [jsonManifest] instead", ReplaceWith("jsonManifest"))
     fun toJSON() = JSONObject(jsonManifest)
+
+    @Deprecated("Use `metadata.effectiveReadingProgression` instead", ReplaceWith("metadata.effectiveReadingProgression"), level = DeprecationLevel.ERROR)
+    val contentLayout: ReadingProgression get() = metadata.effectiveReadingProgression
+
+    @Deprecated("Use `metadata.effectiveReadingProgression` instead", ReplaceWith("metadata.effectiveReadingProgression"), level = DeprecationLevel.ERROR)
+    fun contentLayoutForLanguage(language: String?) = metadata.effectiveReadingProgression
 
 }

@@ -15,11 +15,14 @@ import org.json.JSONObject
 import org.readium.r2.shared.R
 import org.readium.r2.shared.UserException
 import org.readium.r2.shared.extensions.coerceIn
+import org.readium.r2.shared.extensions.contains
 import org.readium.r2.shared.extensions.requireLengthFitInt
 import org.readium.r2.shared.parser.xml.ElementNode
 import org.readium.r2.shared.parser.xml.XmlParser
 import org.readium.r2.shared.publication.Link
+import org.readium.r2.shared.util.SuspendingCloseable
 import org.readium.r2.shared.util.Try
+import org.readium.r2.shared.util.flatMap
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.nio.charset.Charset
@@ -38,7 +41,7 @@ typealias ResourceTransformer = (Resource) -> Resource
 /**
  * Acts as a proxy to an actual resource by handling read access.
  */
-interface Resource {
+interface Resource : SuspendingCloseable {
 
     /**
      * Direct file to this resource, when available.
@@ -82,7 +85,7 @@ interface Resource {
      */
     suspend fun readAsString(charset: Charset? = null): ResourceTry<String> =
         read().mapCatching {
-            String(it, charset = charset ?: link().mediaType?.charset ?: Charsets.UTF_8)
+            String(it, charset = charset ?: link().mediaType.charset ?: Charsets.UTF_8)
         }
 
     /**
@@ -97,43 +100,14 @@ interface Resource {
     suspend fun readAsXml(): ResourceTry<ElementNode> =
         read().mapCatching { XmlParser().parse(ByteArrayInputStream(it)) }
 
-    /**
-     * Closes any opened file handles.
-     *
-     * If the Resource is already closed then invoking this method has no effect.
-     */
-    suspend fun close()
-
-    /**
-     * Executes the given block function on this resource and then closes it down correctly whether an exception is thrown or not.
-     */
-    suspend fun <R> use(block: suspend (Resource) -> R): R {
-        var exception: Throwable? = null
-        try {
-            return block(this)
-        } catch (e: Throwable) {
-            exception = e
-            throw e
-        } finally {
-            if (exception == null)
-                close()
-            else
-                try {
-                    close()
-                } catch (closeException: Throwable) {
-                    exception.addSuppressed(closeException)
-                }
-
-        }
-    }
-
     companion object {
         /**
          * Creates a cached resource wrapping this resource.
          */
-        fun Resource.cached(): Resource =
-            if (this is CachingResource) this
-            else CachingResource(this)
+        @Deprecated("If you were caching a TransformingResource, build it with cacheBytes set to true." +
+                "Otherwise, please report your use case.",
+            level = DeprecationLevel.ERROR)
+        fun Resource.cached(): Resource = this
     }
 
     /**
@@ -142,11 +116,12 @@ interface Resource {
     sealed class Exception(@StringRes userMessageId: Int, cause: Throwable? = null) : UserException(userMessageId, cause = cause) {
 
         /** Equivalent to a 400 HTTP error. */
-        class BadRequest(val parameters: Map<String, String>, cause: Throwable? = null)
+        class BadRequest(val parameters: Map<String, String> = emptyMap(), cause: Throwable? = null)
             : Exception(R.string.r2_shared_resource_exception_bad_request, cause)
 
         /** Equivalent to a 404 HTTP error. */
-        object NotFound : Exception(R.string.r2_shared_resource_exception_not_found)
+        class NotFound(cause: Throwable? = null) :
+            Exception(R.string.r2_shared_resource_exception_not_found, cause)
 
         /**
          * Equivalent to a 403 HTTP error.
@@ -154,7 +129,8 @@ interface Resource {
          * This can be returned when trying to read a resource protected with a DRM that is not
          * unlocked.
          */
-        object Forbidden : Exception(R.string.r2_shared_resource_exception_forbidden)
+        class Forbidden(cause: Throwable? = null)
+            : Exception(R.string.r2_shared_resource_exception_forbidden, cause)
 
         /**
          * Equivalent to a 503 HTTP error.
@@ -162,7 +138,8 @@ interface Resource {
          * Used when the source can't be reached, e.g. no Internet connection, or an issue with the
          * file system. Usually this is a temporary error.
          */
-        object Unavailable : Exception(R.string.r2_shared_resource_exception_unavailable)
+        class Unavailable(cause: Throwable? = null)
+            : Exception(R.string.r2_shared_resource_exception_unavailable, cause)
 
         /**
          * The Internet connection appears to be offline.
@@ -235,6 +212,8 @@ abstract class ProxyResource(protected val resource: Resource) : Resource {
 
     override suspend fun close() = resource.close()
 
+    override val file: File? get() = resource.file
+
     override fun toString(): String =
         "${javaClass.simpleName}($resource)"
 
@@ -248,7 +227,10 @@ abstract class ProxyResource(protected val resource: Resource) : Resource {
  * Warning: bytes are read and cached entirely the first time, even if only a [range] is requested.
  * So this is not appropriate for large resources.
  */
-class CachingResource(protected val resource: Resource) : Resource {
+@Deprecated("If you were caching a TransformingResource, build it with cacheBytes set to true." +
+        "Otherwise, please report your use case.",
+    level = DeprecationLevel.ERROR)
+class CachingResource(private val resource: Resource) : Resource {
 
     private lateinit var _link: Link
     private lateinit var _length: ResourceTry<Long>
@@ -295,16 +277,28 @@ class CachingResource(protected val resource: Resource) : Resource {
  * Transforms the bytes of [resource] on-the-fly.
  *
  * Warning: The transformation runs on the full content of [resource], so it's not appropriate for
- * large resources which can't be held in memory. Also, wrapping a [TransformingResource] in a
- * [CachingResource] can be a good idea to cache the result of the transformation in case multiple
- * ranges will be read.
+ * large resources which can't be held in memory. Pass [cacheBytes] = true to cache the result of
+ * the transformation. This may be useful if multiple ranges will be read.
  */
-abstract class TransformingResource(resource: Resource) : ProxyResource(resource) {
+abstract class TransformingResource(
+    resource: Resource,
+    private val cacheBytes: Boolean = false
+) : ProxyResource(resource) {
+
+    private lateinit var _bytes: ResourceTry<ByteArray>
 
     abstract suspend fun transform(data: ResourceTry<ByteArray>):  ResourceTry<ByteArray>
 
-    private suspend fun bytes(): ResourceTry<ByteArray> =
-        transform(resource.read())
+    private suspend fun bytes(): ResourceTry<ByteArray> {
+        if (::_bytes.isInitialized)
+            return _bytes
+
+        val bytes = transform(resource.read())
+        if (cacheBytes)
+            _bytes = bytes
+
+        return bytes
+    }
 
     override suspend fun read(range: LongRange?): ResourceTry<ByteArray> =
         bytes().map {
@@ -356,6 +350,147 @@ class LazyResource(private val factory: suspend () -> Resource) : Resource {
         }
     
 }
+
+/**
+ * Wraps a [Resource] and buffers its content.
+ *
+ * Expensive interaction with the underlying resource is minimized, since most (smaller) requests
+ * can be satisfied by accessing the buffer alone. The drawback is that some extra space is required
+ * to hold the buffer and that copying takes place when filling that buffer, but this is usually
+ * outweighed by the performance benefits.
+ *
+ * Note that this implementation is pretty limited and the benefits are only apparent when reading
+ * forward and consecutively – e.g. when downloading the resource by chunks. The buffer is ignored
+ * when reading backward or far ahead.
+ *
+ * @param resource Underlying resource which will be buffered.
+ * @param resourceLength The total length of the resource, when known. This can improve performance
+ *        by avoiding requesting the length from the underlying resource.
+ * @param bufferSize Size of the buffer chunks to read.
+ */
+class BufferingResource(
+    resource: Resource,
+    resourceLength: Long? = null,
+    private val bufferSize: Long = DEFAULT_BUFFER_SIZE,
+) : ProxyResource(resource) {
+
+    companion object {
+        const val DEFAULT_BUFFER_SIZE: Long = 8192
+    }
+
+    /**
+     * The buffer containing the current bytes read from the wrapped [Resource], with the range it
+     * covers.
+     */
+    private var buffer: Pair<ByteArray, LongRange>? = null
+
+    private lateinit var _cachedLength: ResourceTry<Long>
+    private suspend fun cachedLength(): ResourceTry<Long> {
+        if (!::_cachedLength.isInitialized)
+            _cachedLength = resource.length()
+        return _cachedLength
+    }
+
+    init {
+        if (resourceLength != null) {
+            _cachedLength = Try.success(resourceLength)
+        }
+    }
+
+    override suspend fun read(range: LongRange?): ResourceTry<ByteArray> {
+        val length = cachedLength().getOrNull()
+        // Reading the whole resource bypasses buffering to keep things simple.
+        if (range == null || length == null) {
+            return super.read(range)
+        }
+
+        val requestedRange = range
+            .coerceIn(0L until length)
+            .requireLengthFitInt()
+        if (requestedRange.isEmpty()) {
+            return Try.success(ByteArray(0))
+        }
+
+        // Round up the range to be read to the next `bufferSize`, because we will buffer the
+        // excess.
+        val readLast = (requestedRange.last + 1).ceilMultipleOf(bufferSize).coerceAtMost(length)
+        var readRange = requestedRange.first until readLast
+
+        // Attempt to serve parts or all of the request using the buffer.
+        buffer?.let { pair ->
+            var (buffer, bufferedRange) = pair
+
+            // Everything already buffered?
+            if (bufferedRange.contains(requestedRange)) {
+                val data = extractRange(requestedRange, buffer, start = bufferedRange.first)
+                return Try.success(data)
+
+            // Beginning of requested data is buffered?
+            } else if (bufferedRange.contains(requestedRange.first)) {
+                readRange = (bufferedRange.last + 1)..readRange.last
+
+                return super.read(readRange).map { readData ->
+                    buffer += readData
+                    // Shift the current buffer to the tail of the read data.
+                    saveBuffer(buffer, readRange)
+
+                    val bytes = extractRange(requestedRange, buffer, start = bufferedRange.first)
+                    bytes
+                }
+            }
+        }
+
+        // Fallback on reading the requested range from the original resource.
+        return super.read(readRange).map { data ->
+            saveBuffer(data, readRange)
+
+            val res = if (data.count() > requestedRange.count())
+                data.copyOfRange(0, requestedRange.count())
+            else
+                data
+
+            res
+        }
+    }
+
+    /**
+     * Keeps the last chunk of the given data as the buffer for next reads.
+     *
+     * @param data Data read from the original resource.
+     * @param range Range of the read data in the resource.
+     */
+    private fun saveBuffer(data: ByteArray, range: LongRange) {
+        val lastChunk = data.takeLast(bufferSize.toInt()).toByteArray()
+        val chunkRange = (range.last + 1 - lastChunk.count())..range.last
+        buffer = Pair(lastChunk, chunkRange)
+    }
+
+    /**
+     * Reads a sub-range of the given [data] after shifting the given absolute (to the resource)
+     * ranges to be relative to [data].
+     */
+    private fun extractRange(requestedRange: LongRange, data: ByteArray, start: Long): ByteArray {
+        val first = requestedRange.first - start
+        val lastExclusive = first + requestedRange.count()
+        require(first >= 0)
+        require(lastExclusive <= data.count()) { "$lastExclusive > ${data.count()}" }
+        return data.copyOfRange(first.toInt(), lastExclusive.toInt())
+    }
+
+    private fun Long.ceilMultipleOf(divisor: Long) =
+        divisor * (this / divisor + if (this % divisor == 0L) 0 else 1)
+
+}
+
+/**
+ * Wraps this resource in a [BufferingResource] to improve reading performances.
+ *
+ * @param resourceLength The total length of the resource, when known. This can improve performance
+ *        by avoiding requesting the length from the underlying resource.
+ * @param bufferSize Size of the buffer chunks to read.
+ */
+fun Resource.buffered(resourceLength: Long? = null, size: Long = BufferingResource.DEFAULT_BUFFER_SIZE) =
+    BufferingResource(resource = this, resourceLength = resourceLength, bufferSize = size)
 
 /**
  * Maps the result with the given [transform]

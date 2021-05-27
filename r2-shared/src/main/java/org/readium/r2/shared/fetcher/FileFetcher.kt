@@ -12,10 +12,10 @@ package org.readium.r2.shared.fetcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.readium.r2.shared.extensions.*
-import org.readium.r2.shared.format.Format
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.util.Try
 import org.readium.r2.shared.util.isLazyInitialized
+import org.readium.r2.shared.util.mediatype.MediaType
 import timber.log.Timber
 import java.io.File
 import java.io.FileNotFoundException
@@ -46,7 +46,7 @@ class FileFetcher(private val paths: Map<String, File>) : Fetcher {
                     } else {
                         Link(
                             href = File(href, it.canonicalPath.removePrefix(file.canonicalPath)).canonicalPath,
-                            type = Format.ofFile(file, fileExtension = it.extension)?.mediaType.toString()
+                            type = MediaType.ofFile(file, fileExtension = it.extension)?.toString()
                         )
                     }
                 }
@@ -68,7 +68,7 @@ class FileFetcher(private val paths: Map<String, File>) : Fetcher {
                 }
             }
         }
-        return FailureResource(link, Resource.Exception.NotFound)
+        return FailureResource(link, Resource.Exception.NotFound())
     }
 
     override suspend fun close() {
@@ -149,9 +149,9 @@ class FileFetcher(private val paths: Map<String, File>) : Fetcher {
             try {
                 success(closure())
             } catch (e: FileNotFoundException) {
-                failure(Resource.Exception.NotFound)
+                failure(Resource.Exception.NotFound(e))
             } catch (e: SecurityException) {
-                failure(Resource.Exception.Forbidden)
+                failure(Resource.Exception.Forbidden(e))
             } catch (e: Exception) {
                 failure(Resource.Exception.wrap(e))
             } catch (e: OutOfMemoryError) { // We don't want to catch any Error, only OOM.

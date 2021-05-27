@@ -14,13 +14,12 @@ import kotlinx.coroutines.withContext
 import org.readium.r2.shared.extensions.addPrefix
 import org.readium.r2.shared.extensions.tryOr
 import org.readium.r2.shared.extensions.tryOrNull
-import org.readium.r2.shared.format.Format
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.util.Try
 import org.readium.r2.shared.util.archive.Archive
 import org.readium.r2.shared.util.archive.ArchiveFactory
 import org.readium.r2.shared.util.archive.DefaultArchiveFactory
-import org.readium.r2.shared.util.archive.JavaZip
+import org.readium.r2.shared.util.mediatype.MediaType
 import timber.log.Timber
 import java.io.File
 
@@ -60,7 +59,7 @@ class ArchiveFetcher private constructor(private val archive: Archive) : Fetcher
                     val entry = archive.entry(originalLink.href.removePrefix("/"))
                     Try.success(entry)
                 } catch (e: Exception) {
-                    Try.failure(Resource.Exception.NotFound)
+                    Try.failure(Resource.Exception.NotFound(e))
                 }
             }
 
@@ -83,7 +82,11 @@ class ArchiveFetcher private constructor(private val archive: Archive) : Fetcher
             metadataLength()?.let { Try.success(it) }
                 ?: read().map { it.size.toLong() }
 
-        override suspend fun close() {}
+        override suspend fun close() {
+            if (::_entry.isInitialized) {
+                _entry.onSuccess { it.close() }
+            }
+        }
 
         private suspend fun metadataLength(): Long? =
             entry().getOrNull()?.length
@@ -94,10 +97,10 @@ class ArchiveFetcher private constructor(private val archive: Archive) : Fetcher
     }
 }
 
-private fun Archive.Entry.toLink(): Link {
+private suspend fun Archive.Entry.toLink(): Link {
     val link = Link(
         href = path.addPrefix("/"),
-        type = Format.of(fileExtension = File(path).extension)?.mediaType?.toString()
+        type = MediaType.of(fileExtension = File(path).extension)?.toString()
     )
 
     return compressedLength?.let { link.addProperties(mapOf("compressedLength" to it)) }

@@ -18,10 +18,13 @@ import org.readium.r2.shared.Fixtures
 import org.readium.r2.shared.fetcher.EmptyFetcher
 import org.readium.r2.shared.fetcher.Resource
 import org.readium.r2.shared.fetcher.StringResource
+import org.readium.r2.shared.publication.services.DefaultLocatorService
 import org.readium.r2.shared.publication.services.PositionsService
 import org.readium.r2.shared.publication.services.positions
 import org.readium.r2.shared.publication.services.positionsByReadingOrder
+import org.readium.r2.shared.util.Ref
 import java.net.URL
+import kotlin.reflect.KClass
 
 class PublicationTest {
 
@@ -67,7 +70,7 @@ class PublicationTest {
             listOf(Locator(href = "locator", type = "")),
             createPublication(
                 servicesBuilder = Publication.ServicesBuilder(
-                    positions = { context ->
+                    positions = {
                         object: PositionsService {
                             override suspend fun positionsByReadingOrder(): List<List<Locator>> = listOf(listOf(Locator(href = "locator", type = "")))
                         }
@@ -90,7 +93,7 @@ class PublicationTest {
             ),
             createPublication(
                 servicesBuilder = Publication.ServicesBuilder(
-                    positions = { context ->
+                    positions = {
                         object: PositionsService {
                             override suspend fun positionsByReadingOrder(): List<List<Locator>> = listOf(
                                 listOf(
@@ -103,30 +106,6 @@ class PublicationTest {
                     }
                 )
             ).let { runBlocking { it.positionsByReadingOrder() }  }
-        )
-    }
-
-    @Test fun `get {contentLayout} for the default language`() {
-        assertEquals(
-            ContentLayout.RTL,
-            createPublication(language = "AR").contentLayout
-        )
-    }
-
-    @Test fun `get {contentLayout} for the given language`() {
-        val publication = createPublication()
-
-        assertEquals(ContentLayout.RTL, publication.contentLayoutForLanguage("AR"))
-        assertEquals(ContentLayout.LTR, publication.contentLayoutForLanguage("EN"))
-    }
-
-    @Test fun `get {contentLayout} fallbacks on the {readingProgression}`() {
-        assertEquals(
-            ContentLayout.RTL,
-            createPublication(
-                language = "en",
-                readingProgression = ReadingProgression.RTL
-            ).contentLayoutForLanguage("EN")
         )
     }
 
@@ -360,15 +339,16 @@ class PublicationTest {
 
 class ServicesBuilderTest {
 
-    open class FooService: Publication.Service {}
+    open class FooService: Publication.Service
     class FooServiceA: FooService()
     class FooServiceB: FooService()
     class FooServiceC(val wrapped: FooService?): FooService()
 
-    open class BarService: Publication.Service {}
-    class BarServiceA: BarService() {}
+    open class BarService: Publication.Service
+    class BarServiceA: BarService()
 
     private val context = Publication.Service.Context(
+        Ref(),
         Manifest(metadata = Metadata(localizedTitle = LocalizedString())),
         EmptyFetcher()
     )
@@ -382,16 +362,16 @@ class ServicesBuilderTest {
             }
             .build(context)
 
-        assertEquals(2, services.size)
-        assertThat(services[0], instanceOf(FooServiceA::class.java))
-        assertThat(services[1], instanceOf(BarServiceA::class.java))
+        assertNotNull(services.find<FooServiceA>())
+        assertNotNull(services.find<BarServiceA>())
     }
 
     @Test
     fun testBuildEmpty() {
         val builder = Publication.ServicesBuilder(cover = null)
         val services = builder.build(context)
-        assertTrue(services.isEmpty())
+        assertEquals(1, services.size)
+        assertNotNull(services.find<DefaultLocatorService>())
     }
 
     @Test
@@ -403,8 +383,8 @@ class ServicesBuilderTest {
             }
             .build(context)
 
-        assertEquals(1, services.size)
-        assertThat(services[0], instanceOf(FooServiceB::class.java))
+        assertNotNull(services.find<FooServiceB>())
+        assertNull(services.find<FooServiceA>())
     }
 
     @Test
@@ -417,8 +397,8 @@ class ServicesBuilderTest {
             }
             .build(context)
 
-        assertEquals(1, services.size)
-        assertThat(services[0], instanceOf(BarServiceA::class.java))
+        assertNotNull(services.find<BarServiceA>())
+        assertNull(services.find<FooServiceA>())
     }
 
     @Test
@@ -430,8 +410,8 @@ class ServicesBuilderTest {
             }
             .build(context)
 
-        assertEquals(1, services.size)
-        assertThat(services[0], instanceOf(FooServiceA::class.java))
+        assertNotNull(services.find<FooServiceA>())
+        assertNull(services.find<BarService>())
     }
 
     @Test
@@ -448,9 +428,12 @@ class ServicesBuilderTest {
             }
             .build(context)
 
-        assertEquals(2, services.size)
-        assertThat(services[0], instanceOf(FooServiceC::class.java))
-        assertThat((services[0] as? FooServiceC)?.wrapped,  instanceOf(FooServiceB::class.java))
-        assertThat(services[1], instanceOf(BarServiceA::class.java))
+        assertNotNull(services.find<FooServiceC>())
+        assertThat(services.find<FooServiceC>()?.wrapped,  instanceOf(FooServiceB::class.java))
+        assertNotNull(services.find<BarServiceA>())
     }
+
+    private inline fun <reified T> List<Publication.Service>.find(): T? =
+        firstOrNull { it is T } as? T
+
 }
