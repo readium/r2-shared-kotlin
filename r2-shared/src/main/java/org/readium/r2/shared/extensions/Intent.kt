@@ -53,7 +53,7 @@ fun Intent.getPublication(activity: Activity?): Publication {
     return publication
 }
 
-fun Intent.getPublicationOrNull(activity: Activity): Publication? {
+fun Intent.getPublicationOrNull(): Publication? {
     if (hasExtra("publication")) {
         if (BuildConfig.DEBUG) {
             throw deprecationException
