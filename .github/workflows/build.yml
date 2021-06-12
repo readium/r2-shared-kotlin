@@ -20,6 +20,6 @@ jobs:
           java-version: '11'
           distribution: 'adopt'
       - name: Build
-        run: ./gradlew build -x test
+        run: ./gradlew clean build -x test
       - name: Test
-        run: ./gradlew test
+        run: ./gradlew test --continue
