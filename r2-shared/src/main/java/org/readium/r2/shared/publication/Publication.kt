@@ -11,6 +11,7 @@ package org.readium.r2.shared.publication
 
 import android.net.Uri
 import androidx.annotation.StringRes
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import org.json.JSONObject
@@ -164,6 +165,7 @@ class Publication(
     /**
      * Closes any opened resource associated with the [Publication], including services.
      */
+    @DelicateCoroutinesApi
     fun close() = GlobalScope.launch {
         try {
             fetcher.close()
