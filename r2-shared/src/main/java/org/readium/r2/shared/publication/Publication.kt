@@ -166,6 +166,7 @@ class Publication(
      * Closes any opened resource associated with the [Publication], including services.
      */
     @DelicateCoroutinesApi
+    //TODO Change this to be a suspend function
     fun close() = GlobalScope.launch {
         try {
             fetcher.close()
