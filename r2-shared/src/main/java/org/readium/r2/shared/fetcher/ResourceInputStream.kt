@@ -24,7 +24,7 @@ import java.io.InputStream
  */
 class ResourceInputStream(
     private val resource: Resource,
-    private val autocloseResource: Boolean,
+    private val autocloseResource: Boolean = true,
     private val range: LongRange? = null
 ) : InputStream() {
 
