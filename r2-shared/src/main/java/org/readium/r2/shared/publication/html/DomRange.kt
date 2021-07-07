@@ -10,7 +10,7 @@
 package org.readium.r2.shared.publication.html
 
 import android.os.Parcelable
-import kotlinx.android.parcel.Parcelize
+import kotlinx.parcelize.Parcelize
 import org.json.JSONObject
 import org.readium.r2.shared.JSONable
 import org.readium.r2.shared.extensions.optNullableString
@@ -88,6 +88,10 @@ data class DomRange(
                     cssSelector = cssSelector,
                     textNodeIndex = textNodeIndex,
                     charOffset = json.optPositiveInt("charOffset")
+                        // The model was using `offset` before, so we still parse it to ensure
+                        // backward-compatibility for reading apps having persisted legacy Locator
+                        // models.
+                        ?: json.optPositiveInt("offset")
                 )
             }
 

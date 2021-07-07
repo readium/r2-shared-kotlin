@@ -4,7 +4,33 @@ All notable changes to this project will be documented in this file.
 
 **Warning:** Features marked as *experimental* may change or be removed in a future release without notice. Use with caution.
 
-## [Unreleased]
+<!--## [Unreleased]-->
+
+## [2.0.0]
+
+### Added
+
+* `HttpFetcher` is a new publication fetcher able to serve remote resources through HTTP.
+    * The actual HTTP requests are performed with an instance of `HttpClient`.
+* `HttpClient` is a new protocol exposing a high level API to perform HTTP requests.
+    * `DefaultHttpClient` is an implementation of `HttpClient` using standard `HttpURLConnection` APIs. You can use `DefaultHttpClient.Callback` to customize how requests are created and even recover from errors, e.g. to implement Authentication for OPDS.
+    * You can provide your own implementation of `HttpClient` to Readium APIs if you prefer to use a third-party networking library.
+
+
+## [2.0.0-beta.2]
+
+### Added
+
+* `Publication.Service.Context` now holds a reference to the parent `Publication`. This can be used to access other services from a given `Publication.Service` implementation.
+* The default `LocatorService` implementation can be used to get a `Locator` from a global progression in the publication.
+  * `publication.locateProgression(0.5)`
+
+### Fixed
+
+* [#129](https://github.com/readium/r2-shared-kotlin/issues/129) Improve performances when reading deflated ZIP resources.
+  * For example, it helps with large image-based FXL EPUB which used to be slow to render.
+* [#136](https://github.com/readium/r2-shared-kotlin/issues/136) `null` values in JSON string properties are now properly parsed as nullable types, instead of the string `"null"`
+
 
 ## [2.0.0-beta.1]
 
@@ -87,4 +113,6 @@ All notable changes to this project will be documented in this file.
 [2.0.0-alpha.1]: https://github.com/readium/r2-shared-kotlin/compare/1.1.6...2.0.0-alpha.1
 [2.0.0-alpha.2]: https://github.com/readium/r2-shared-kotlin/compare/2.0.0-alpha.1...2.0.0-alpha.2
 [2.0.0-beta.1]: https://github.com/readium/r2-shared-kotlin/compare/2.0.0-alpha.2...2.0.0-beta.1
+[2.0.0-beta.2]: https://github.com/readium/r2-shared-kotlin/compare/2.0.0-beta.1...2.0.0-beta.2
+[2.0.0]: https://github.com/readium/r2-shared-kotlin/compare/2.0.0-beta.2...2.0.0
 

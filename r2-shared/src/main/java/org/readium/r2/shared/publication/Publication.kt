@@ -29,6 +29,7 @@ import org.readium.r2.shared.util.mediatype.MediaType
 import org.readium.r2.shared.publication.epub.listOfAudioClips
 import org.readium.r2.shared.publication.epub.listOfVideoClips
 import org.readium.r2.shared.publication.services.*
+import org.readium.r2.shared.util.Ref
 import timber.log.Timber
 import java.net.URL
 import java.net.URLEncoder
@@ -55,8 +56,6 @@ typealias PublicationId = String
  * The default implementation returns Resource.Exception.NotFound for all HREFs.
  * @param servicesBuilder Holds the list of service factories used to create the instances of
  * Publication.Service attached to this Publication.
- * @param type The kind of publication it is ( EPUB, CBZ, ... )
- * @param version The version of the publication, if the type needs any.
  * @param positionsFactory Factory used to build lazily the [positions].
  */
 class Publication(
@@ -75,8 +74,19 @@ class Publication(
     @Deprecated("This will be removed in a future version. Use [Format.of] to check the format of a publication.", level = DeprecationLevel.ERROR)
     var internalData: MutableMap<String, String> = mutableMapOf()
 ) {
-    private val _services: List<Service> = servicesBuilder.build(Service.Context(manifest, fetcher))
-    private val _manifest = manifest.copy(links = manifest.links + _services.map(Service::links).flatten())
+    private val _services: List<Service>
+    private val _manifest: Manifest
+
+    init {
+        // We use a Ref<Publication> instead of passing directly `this` to the services to prevent
+        // them from using the Publication before it is fully initialized.
+        val pubRef = Ref<Publication>()
+
+        _services = servicesBuilder.build(Service.Context(pubRef, manifest, fetcher))
+        _manifest = manifest.copy(links = manifest.links + _services.map(Service::links).flatten())
+
+        pubRef.ref = this
+    }
 
     // Shortcuts to manifest properties
 
@@ -280,8 +290,16 @@ class Publication(
 
         /**
          * Container for the context from which a service is created.
+         *
+         * @param publication Reference to the parent publication.
+         *        Don't store directly the referenced publication, always access it through the
+         *        [Ref] property. The publication won't be set when the service is created or when
+         *        calling [Service.links], but you can use it during regular service operations. If
+         *        you need to initialize your service differently depending on the publication, use
+         *        `manifest`.
          */
         class Context(
+            val publication: Ref<Publication>,
             val manifest: Manifest,
             val fetcher: Fetcher
         )
@@ -313,6 +331,10 @@ class Publication(
          *
          * Called by [Publication.get] for each request.
          *
+         * Warning: If you need to request one of the publication resources to answer the request,
+         * use the [Fetcher] provided by the [Publication.Service.Context] instead of
+         * [Publication.get], otherwise it will trigger an infinite loop.
+         *
          * @return The [Resource] containing the response, or null if the service doesn't recognize
          *         this request.
          */
@@ -336,7 +358,7 @@ class Publication(
         constructor(
             contentProtection: ServiceFactory? = null,
             cover: ServiceFactory? = null,
-            locator: ServiceFactory? = { DefaultLocatorService(it.manifest.readingOrder) },
+            locator: ServiceFactory? = { DefaultLocatorService(it.manifest.readingOrder, it.publication) },
             positions: ServiceFactory? = null
         ) : this(mapOf(
             ContentProtectionService::class.java.simpleName to contentProtection,
@@ -389,28 +411,28 @@ class Publication(
         /**
          * The file format could not be recognized by any parser.
          */
-        object UnsupportedFormat : OpeningException(R.string.r2_shared_publication_opening_exception_unsupported_format)
+        class UnsupportedFormat(cause: Throwable? = null) : OpeningException(R.string.r2_shared_publication_opening_exception_unsupported_format, cause)
 
         /**
          * The publication file was not found on the file system.
          */
-        object NotFound : OpeningException(R.string.r2_shared_publication_opening_exception_not_found)
+        class NotFound(cause: Throwable? = null) : OpeningException(R.string.r2_shared_publication_opening_exception_not_found, cause)
 
         /**
          * The publication parser failed with the given underlying exception.
          */
-        class ParsingFailed(cause: Throwable) : OpeningException(R.string.r2_shared_publication_opening_exception_parsing_failed, cause)
+        class ParsingFailed(cause: Throwable? = null) : OpeningException(R.string.r2_shared_publication_opening_exception_parsing_failed, cause)
 
         /**
          * We're not allowed to open the publication at all, for example because it expired.
          */
-        class Forbidden(cause: Throwable?) : OpeningException(R.string.r2_shared_publication_opening_exception_forbidden, cause)
+        class Forbidden(cause: Throwable? = null) : OpeningException(R.string.r2_shared_publication_opening_exception_forbidden, cause)
 
         /**
          * The publication can't be opened at the moment, for example because of a networking error.
          * This error is generally temporary, so the operation may be retried or postponed.
          */
-        class Unavailable(cause: Throwable?) : OpeningException(R.string.r2_shared_publication_opening_exception_unavailable, cause)
+        class Unavailable(cause: Throwable? = null) : OpeningException(R.string.r2_shared_publication_opening_exception_unavailable, cause)
 
         /**
          * The provided credentials are incorrect and we can't open the publication in a
