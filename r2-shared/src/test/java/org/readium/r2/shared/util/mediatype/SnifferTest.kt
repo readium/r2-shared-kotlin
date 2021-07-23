@@ -258,6 +258,13 @@ class SnifferTest {
     }
 
     @Test
+    fun `sniff JSON`() = runBlocking {
+        assertEquals(MediaType.JSON, MediaType.of(mediaType = "application/json"))
+        assertEquals(MediaType.JSON, MediaType.of(mediaType = "application/json; charset=utf-8"))
+        assertEquals(MediaType.JSON, MediaType.ofFile(fixtures.fileAt("any.json")))
+    }
+
+    @Test
     fun `sniff system media types`() = runBlocking {
         shadowOf(MimeTypeMap.getSingleton()).addExtensionMimeTypMapping("xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         val xlsx = MediaType.parse(

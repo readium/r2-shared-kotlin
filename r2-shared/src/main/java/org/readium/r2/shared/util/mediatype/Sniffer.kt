@@ -33,8 +33,8 @@ object Sniffers {
      * The sniffers order is important, because some formats are subsets of other formats.
      */
     val all: List<Sniffer> = listOf(
-        ::html, ::opds, ::lcpLicense, ::bitmap,
-        ::webpub, ::w3cWPUB, ::epub, ::lpf, ::archive, ::pdf
+        ::html, ::opds, ::lcpLicense, ::bitmap, ::webpub, ::w3cWPUB, ::epub, ::lpf, ::archive,
+        ::pdf, ::json
     )
 
     /** Sniffs an HTML document. */
@@ -320,6 +320,17 @@ object Sniffers {
             return MediaType.PDF
         }
 
+        return null
+    }
+
+    /** Sniffs a JSON document. */
+    suspend fun json(context: SnifferContext): MediaType? {
+        if (context.hasMediaType("application/json")) {
+            return MediaType.JSON
+        }
+        if (context.contentAsJson() != null) {
+            return MediaType.JSON
+        }
         return null
     }
 
