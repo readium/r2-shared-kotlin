@@ -118,6 +118,12 @@ class SnifferTest {
     }
 
     @Test
+    fun `sniff AVIF`() = runBlocking {
+        assertEquals(MediaType.AVIF, MediaType.of(fileExtension = "avif"))
+        assertEquals(MediaType.AVIF, MediaType.of(mediaType = "image/avif"))
+    }
+
+    @Test
     fun `sniff GIF`() = runBlocking {
         assertEquals(MediaType.GIF, MediaType.of(fileExtension = "gif"))
         assertEquals(MediaType.GIF, MediaType.of(mediaType = "image/gif"))
@@ -144,6 +150,12 @@ class SnifferTest {
         assertEquals(MediaType.JPEG, MediaType.of(fileExtension = "jfif"))
         assertEquals(MediaType.JPEG, MediaType.of(fileExtension = "jfi"))
         assertEquals(MediaType.JPEG, MediaType.of(mediaType = "image/jpeg"))
+    }
+
+    @Test
+    fun `sniff JXL`() = runBlocking {
+        assertEquals(MediaType.JXL, MediaType.of(fileExtension = "jxl"))
+        assertEquals(MediaType.JXL, MediaType.of(mediaType = "image/jxl"))
     }
 
     @Test

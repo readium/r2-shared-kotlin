@@ -107,7 +107,11 @@ object Sniffers {
     }
 
     /** Sniffs a bitmap image. */
+    @Suppress("RedundantSuspendModifier")
     suspend fun bitmap(context: SnifferContext): MediaType? {
+        if (context.hasFileExtension("avif") || context.hasMediaType("image/avif")) {
+            return MediaType.AVIF
+        }
         if (context.hasFileExtension("bmp", "dib") || context.hasMediaType("image/bmp", "image/x-bmp")) {
             return MediaType.BMP
         }
@@ -116,6 +120,9 @@ object Sniffers {
         }
         if (context.hasFileExtension("jpg", "jpeg", "jpe", "jif", "jfif", "jfi") || context.hasMediaType("image/jpeg")) {
             return MediaType.JPEG
+        }
+        if (context.hasFileExtension("jxl") || context.hasMediaType("image/jxl")) {
+            return MediaType.JXL
         }
         if (context.hasFileExtension("png") || context.hasMediaType("image/png")) {
             return MediaType.PNG
