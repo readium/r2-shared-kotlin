@@ -1,18 +1,16 @@
 package org.readium.r2.shared.util.mediatype
 
 import android.webkit.MimeTypeMap
-import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.readium.r2.shared.Fixtures
+import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
-import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
-@RunWith(AndroidJUnit4::class)
-@Config(sdk = [28])
+@RunWith(RobolectricTestRunner::class)
 class SnifferTest {
 
     val fixtures = Fixtures("format")
@@ -120,6 +118,12 @@ class SnifferTest {
     }
 
     @Test
+    fun `sniff AVIF`() = runBlocking {
+        assertEquals(MediaType.AVIF, MediaType.of(fileExtension = "avif"))
+        assertEquals(MediaType.AVIF, MediaType.of(mediaType = "image/avif"))
+    }
+
+    @Test
     fun `sniff GIF`() = runBlocking {
         assertEquals(MediaType.GIF, MediaType.of(fileExtension = "gif"))
         assertEquals(MediaType.GIF, MediaType.of(mediaType = "image/gif"))
@@ -134,6 +138,7 @@ class SnifferTest {
         assertEquals(MediaType.HTML, MediaType.of(mediaType = "text/html"))
         assertEquals(MediaType.HTML, MediaType.of(mediaType = "application/xhtml+xml"))
         assertEquals(MediaType.HTML, MediaType.ofFile(fixtures.fileAt("html.unknown")))
+        assertEquals(MediaType.HTML, MediaType.ofFile(fixtures.fileAt("html-doctype-case.unknown")))
         assertEquals(MediaType.HTML, MediaType.ofFile(fixtures.fileAt("xhtml.unknown")))
     }
 
@@ -146,6 +151,12 @@ class SnifferTest {
         assertEquals(MediaType.JPEG, MediaType.of(fileExtension = "jfif"))
         assertEquals(MediaType.JPEG, MediaType.of(fileExtension = "jfi"))
         assertEquals(MediaType.JPEG, MediaType.of(mediaType = "image/jpeg"))
+    }
+
+    @Test
+    fun `sniff JXL`() = runBlocking {
+        assertEquals(MediaType.JXL, MediaType.of(fileExtension = "jxl"))
+        assertEquals(MediaType.JXL, MediaType.of(mediaType = "image/jxl"))
     }
 
     @Test
@@ -257,6 +268,13 @@ class SnifferTest {
     fun `sniff ZAB`() = runBlocking {
         assertEquals(MediaType.ZAB, MediaType.of(fileExtension = "zab"))
         assertEquals(MediaType.ZAB, MediaType.ofFile(fixtures.fileAt("zab.unknown")))
+    }
+
+    @Test
+    fun `sniff JSON`() = runBlocking {
+        assertEquals(MediaType.JSON, MediaType.of(mediaType = "application/json"))
+        assertEquals(MediaType.JSON, MediaType.of(mediaType = "application/json; charset=utf-8"))
+        assertEquals(MediaType.JSON, MediaType.ofFile(fixtures.fileAt("any.json")))
     }
 
     @Test

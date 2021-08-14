@@ -66,15 +66,15 @@ class MediaType(
         }
 
         // > Both top-level type and subtype names are case-insensitive.
-        this.type = types[0].toLowerCase(Locale.ROOT)
-        this.subtype = types[1].toLowerCase(Locale.ROOT)
+        this.type = types[0].lowercase(Locale.ROOT)
+        this.subtype = types[1].lowercase(Locale.ROOT)
 
         // > Parameter names are case-insensitive and no meaning is attached to the order in which
         // > they appear.
         val parameters = components.drop(1)
             .map { it.split("=") }
             .filter { it.size == 2 }
-            .associate { Pair(it[0].toLowerCase(Locale.ROOT), it[1]) }
+            .associate { Pair(it[0].lowercase(Locale.ROOT), it[1]) }
             .toMutableMap()
 
         // For now, we only support case-insensitive `charset`.
@@ -90,7 +90,7 @@ class MediaType(
         parameters["charset"]?.let {
             parameters["charset"] =
                 (try { Charset.forName(it).name() } catch (e: Exception) { it })
-                    .toUpperCase(Locale.ROOT)
+                    .uppercase(Locale.ROOT)
         }
 
         this.parameters = parameters
@@ -277,6 +277,7 @@ class MediaType(
         val ACSM = MediaType("application/vnd.adobe.adept+xml", name = "Adobe Content Server Message", fileExtension = "acsm")
         val AIFF = MediaType("audio/aiff", fileExtension = "aiff")
         val AVI = MediaType("video/x-msvideo", fileExtension = "avi")
+        val AVIF = MediaType("image/avif", fileExtension = "avif")
         val BINARY = MediaType("application/octet-stream")
         val BMP = MediaType("image/bmp", fileExtension = "bmp")
         val CBZ = MediaType("application/vnd.comicbook+zip", name = "Comic Book Archive", fileExtension = "cbz")
@@ -290,6 +291,7 @@ class MediaType(
         val JAVASCRIPT = MediaType("text/javascript", fileExtension = "js")
         val JPEG = MediaType("image/jpeg", fileExtension = "jpeg")
         val JSON = MediaType("application/json")
+        val JXL = MediaType("image/jxl", fileExtension = "jxl")
         val LCP_LICENSE_DOCUMENT = MediaType("application/vnd.readium.lcp.license.v1.0+json", name = "LCP License", fileExtension = "lcpl")
         val LCP_PROTECTED_AUDIOBOOK = MediaType("application/audiobook+lcp", name = "LCP Protected Audiobook", fileExtension = "lcpa")
         val LCP_PROTECTED_PDF = MediaType("application/pdf+lcp", name = "LCP Protected PDF", fileExtension = "lcpdf")
@@ -496,21 +498,27 @@ class MediaType(
         @Deprecated("Use [LCP_LICENSE_DOCUMENT] instead", ReplaceWith("MediaType.LCP_LICENSE_DOCUMENT"), level = DeprecationLevel.ERROR)
         val LCP_LICENSE: MediaType get() = LCP_LICENSE_DOCUMENT
 
+        @Suppress("UNUSED_PARAMETER")
         @Deprecated("Renamed to [ofFile()]", ReplaceWith("MediaType.ofFile(file, mediaType, fileExtension, sniffers)"), level = DeprecationLevel.ERROR)
         fun of(file: File, mediaType: String? = null, fileExtension: String? = null, sniffers: List<Sniffer> = MediaType.sniffers): MediaType? = null
 
+        @Suppress("UNUSED_PARAMETER")
         @Deprecated("Renamed to [ofFile()]", ReplaceWith("MediaType.ofFile(file, mediaTypes, fileExtensions, sniffers)"), level = DeprecationLevel.ERROR)
         fun of(file: File, mediaTypes: List<String>, fileExtensions: List<String>, sniffers: List<Sniffer> = MediaType.sniffers): MediaType? = null
 
+        @Suppress("UNUSED_PARAMETER")
         @Deprecated("Renamed to [ofBytes()]", ReplaceWith("MediaType.ofBytes(bytes, mediaType, fileExtension, sniffers)"), level = DeprecationLevel.ERROR)
         fun of(bytes: () -> ByteArray, mediaType: String? = null, fileExtension: String? = null, sniffers: List<Sniffer> = MediaType.sniffers): MediaType? = null
 
+        @Suppress("UNUSED_PARAMETER")
         @Deprecated("Renamed to [ofBytes()]", ReplaceWith("MediaType.ofBytes(bytes, mediaTypes, fileExtensions, sniffers)"), level = DeprecationLevel.ERROR)
         fun of(bytes: () -> ByteArray, mediaTypes: List<String>, fileExtensions: List<String>, sniffers: List<Sniffer> = MediaType.sniffers): MediaType? = null
 
+        @Suppress("UNUSED_PARAMETER")
         @Deprecated("Renamed to [ofUri()]", ReplaceWith("MediaType.ofUri(uri, contentResolver, mediaType, fileExtension, sniffers)"), level = DeprecationLevel.ERROR)
         fun of(uri: Uri, contentResolver: ContentResolver, mediaType: String? = null, fileExtension: String? = null, sniffers: List<Sniffer> = MediaType.sniffers): MediaType? = null
 
+        @Suppress("UNUSED_PARAMETER")
         @Deprecated("Renamed to [ofUri()]", ReplaceWith("MediaType.ofUri(uri, contentResolver, mediaTypes, fileExtensions, sniffers)"), level = DeprecationLevel.ERROR)
         fun of(uri: Uri, contentResolver: ContentResolver, mediaTypes: List<String>, fileExtensions: List<String>, sniffers: List<Sniffer> = MediaType.sniffers): MediaType? = null
 

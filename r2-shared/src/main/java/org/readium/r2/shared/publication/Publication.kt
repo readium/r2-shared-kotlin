@@ -1,16 +1,14 @@
 /*
- * Module: r2-shared-kotlin
- * Developers: Aferdita Muriqi, Clément Baumann, Mickaël Menu
- *
- * Copyright (c) 2020. Readium Foundation. All rights reserved.
- * Use of this source code is governed by a BSD-style license which is detailed in the
- * LICENSE file present in the project repository where this source code is maintained.
+ * Copyright 2020 Readium Foundation. All rights reserved.
+ * Use of this source code is governed by the BSD-style license
+ * available in the top-level LICENSE file of the project.
  */
 
 package org.readium.r2.shared.publication
 
 import android.net.Uri
 import androidx.annotation.StringRes
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import org.json.JSONObject
@@ -26,12 +24,12 @@ import org.readium.r2.shared.extensions.toUrlOrNull
 import org.readium.r2.shared.fetcher.EmptyFetcher
 import org.readium.r2.shared.fetcher.Fetcher
 import org.readium.r2.shared.fetcher.Resource
-import org.readium.r2.shared.util.mediatype.MediaType
 import org.readium.r2.shared.publication.epub.listOfAudioClips
 import org.readium.r2.shared.publication.epub.listOfVideoClips
 import org.readium.r2.shared.publication.services.*
 import org.readium.r2.shared.publication.services.search.SearchService
 import org.readium.r2.shared.util.Ref
+import org.readium.r2.shared.util.mediatype.MediaType
 import timber.log.Timber
 import java.net.URL
 import java.net.URLEncoder
@@ -174,6 +172,8 @@ class Publication(
     /**
      * Closes any opened resource associated with the [Publication], including services.
      */
+    @OptIn(DelicateCoroutinesApi::class)
+    //TODO Change this to be a suspend function
     fun close() = GlobalScope.launch {
         try {
             fetcher.close()
@@ -275,6 +275,7 @@ class Publication(
         fun localUrlOf(filename: String, port: Int, href: String): String =
             localBaseUrlOf(filename, port) + href
 
+        @Suppress("UNUSED_PARAMETER")
         @Deprecated("Parse a RWPM with [Manifest::fromJSON] and then instantiate a Publication",
             ReplaceWith("Manifest.fromJSON(json)",
                 "org.readium.r2.shared.publication.Publication", "org.readium.r2.shared.publication.Manifest"),
@@ -477,7 +478,7 @@ class Publication(
      * The provided closure will be used to build the [PositionListFactory], with this being the
      * [Publication].
      */
-    @Suppress("DEPRECATION")
+    @Suppress("DEPRECATION", "UNUSED_PARAMETER")
     @Deprecated("Use [Publication.copy(serviceFactories)] instead", ReplaceWith("Publication.copy(serviceFactories = listOf(positionsServiceFactory)"), level = DeprecationLevel.ERROR)
     fun copyWithPositionsFactory(createFactory: Publication.() -> PositionListFactory): Publication {
         throw NotImplementedError()
@@ -538,6 +539,7 @@ class Publication(
      * The search order is unspecified.
      */
     @Deprecated("Use [linkWithHref()] to find a link with the given HREF", replaceWith = ReplaceWith("linkWithHref"), level = DeprecationLevel.ERROR)
+    @Suppress("UNUSED_PARAMETER")
     fun link(predicate: (Link) -> Boolean): Link? = null
 
     @Deprecated("Use [jsonManifest] instead", ReplaceWith("jsonManifest"))
@@ -547,6 +549,7 @@ class Publication(
     val contentLayout: ReadingProgression get() = metadata.effectiveReadingProgression
 
     @Deprecated("Use `metadata.effectiveReadingProgression` instead", ReplaceWith("metadata.effectiveReadingProgression"), level = DeprecationLevel.ERROR)
+    @Suppress("UNUSED_PARAMETER")
     fun contentLayoutForLanguage(language: String?) = metadata.effectiveReadingProgression
 
 }

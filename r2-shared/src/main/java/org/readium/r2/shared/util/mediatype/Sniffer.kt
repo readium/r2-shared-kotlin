@@ -12,7 +12,6 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import org.readium.r2.shared.extensions.tryOrNull
 import org.readium.r2.shared.publication.*
-import org.readium.r2.shared.util.archive.Archive
 import java.io.File
 import java.net.URLConnection
 import java.util.*
@@ -34,8 +33,8 @@ object Sniffers {
      * The sniffers order is important, because some formats are subsets of other formats.
      */
     val all: List<Sniffer> = listOf(
-        ::html, ::opds, ::lcpLicense, ::bitmap,
-        ::webpub, ::w3cWPUB, ::epub, ::lpf, ::archive, ::pdf
+        ::html, ::opds, ::lcpLicense, ::bitmap, ::webpub, ::w3cWPUB, ::epub, ::lpf, ::archive,
+        ::pdf, ::json
     )
 
     /** Sniffs an HTML document. */
@@ -44,7 +43,10 @@ object Sniffers {
             return MediaType.HTML
         }
         // [contentAsXml] will fail if the HTML is not a proper XML document, hence the doctype check.
-        if (context.contentAsXml()?.name?.toLowerCase(Locale.ROOT) == "html" || context.contentAsString()?.trimStart()?.startsWith("<!DOCTYPE html>") == true) {
+        if (
+            context.contentAsXml()?.name?.lowercase(Locale.ROOT) == "html" ||
+            context.contentAsString()?.trimStart()?.take(15)?.lowercase() == "<!doctype html>"
+        ) {
             return MediaType.HTML
         }
         return null
@@ -108,7 +110,11 @@ object Sniffers {
     }
 
     /** Sniffs a bitmap image. */
+    @Suppress("RedundantSuspendModifier")
     suspend fun bitmap(context: SnifferContext): MediaType? {
+        if (context.hasFileExtension("avif") || context.hasMediaType("image/avif")) {
+            return MediaType.AVIF
+        }
         if (context.hasFileExtension("bmp", "dib") || context.hasMediaType("image/bmp", "image/x-bmp")) {
             return MediaType.BMP
         }
@@ -117,6 +123,9 @@ object Sniffers {
         }
         if (context.hasFileExtension("jpg", "jpeg", "jpe", "jif", "jfif", "jfi") || context.hasMediaType("image/jpeg")) {
             return MediaType.JPEG
+        }
+        if (context.hasFileExtension("jxl") || context.hasMediaType("image/jxl")) {
+            return MediaType.JXL
         }
         if (context.hasFileExtension("png") || context.hasMediaType("image/png")) {
             return MediaType.PNG
@@ -288,13 +297,13 @@ object Sniffers {
         }
 
         if (context.contentAsArchive() != null) {
-            fun isIgnored(entry: Archive.Entry, file: File): Boolean =
+            fun isIgnored(file: File): Boolean =
                 file.name.startsWith(".") || file.name == "Thumbs.db"
 
             suspend fun archiveContainsOnlyExtensions(fileExtensions: List<String>): Boolean =
                 context.archiveEntriesAllSatisfy { entry ->
                     val file = File(entry.path)
-                    isIgnored(entry, file) || fileExtensions.contains(file.extension.toLowerCase(Locale.ROOT))
+                    isIgnored(file) || fileExtensions.contains(file.extension.lowercase(Locale.ROOT))
                 }
 
             if (archiveContainsOnlyExtensions(CBZ_EXTENSIONS)) {
@@ -321,6 +330,17 @@ object Sniffers {
             return MediaType.PDF
         }
 
+        return null
+    }
+
+    /** Sniffs a JSON document. */
+    suspend fun json(context: SnifferContext): MediaType? {
+        if (context.hasMediaType("application/json")) {
+            return MediaType.JSON
+        }
+        if (context.contentAsJson() != null) {
+            return MediaType.JSON
+        }
         return null
     }
 

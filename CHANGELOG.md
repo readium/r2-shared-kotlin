@@ -10,9 +10,14 @@ All notable changes to this project will be documented in this file.
 
 * (*alpha*) A new Publication `SearchService` to search through the resources' content, with a default implementation `StringSearchService`.
 
+### Changed
+
+* Upgraded to Kotlin 1.5.21 and Gradle 7.1.1
+
 ### Fixed
 
 * Crash with `HttpRequest.setPostForm()` on Android 6.
+* HREF normalization when a resource path contains special characters.
 
 
 ## [2.0.0]
