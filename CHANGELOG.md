@@ -9,6 +9,15 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 * (*alpha*) A new Publication `SearchService` to search through the resources' content, with a default implementation `StringSearchService`.
+* `Link` objects from archive-based publication assets (e.g. an EPUB/ZIP) have additional properties for entry metadata.
+    ```json
+    "properties" {
+        "archive": {
+            "entryLength": 8273,
+            "isEntryCompressed": true
+        }
+    }
+    ```
 
 ### Changed
 
