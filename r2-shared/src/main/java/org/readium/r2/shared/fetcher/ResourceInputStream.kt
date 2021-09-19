@@ -18,14 +18,10 @@ import java.io.InputStream
  *
  * If you experience bad performances, consider wrapping the stream in a BufferedInputStream. This
  * is particularly useful when streaming deflated ZIP entries.
- *
- * The underlying resource will be automatically closed when this input stream is closed if
- * [autocloseResource] is true.
  */
 class ResourceInputStream(
     private val resource: Resource,
-    private val autocloseResource: Boolean = true,
-    private val range: LongRange? = null
+    val range: LongRange? = null
 ) : InputStream() {
 
     private var isClosed = false
@@ -127,14 +123,15 @@ class ResourceInputStream(
         position = mark
     }
 
+    /**
+     * Closes the underlying resource.
+     */
     override fun close() = synchronized(this) {
         if (isClosed)
             return
 
         isClosed = true
-        if (autocloseResource) {
-            runBlocking { resource.close() }
-        }
+        runBlocking { resource.close() }
     }
 
     private fun checkNotClosed() {

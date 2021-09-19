@@ -139,20 +139,6 @@ data class Manifest(
                 subcollections = subcollections
             )
         }
-
-        /**
-         * Parses a [Manifest] from a RWPM [file].
-         */
-        suspend fun fromFile(file: File, warnings: WarningLogger? = null): Manifest? = withContext(Dispatchers.IO) {
-            try {
-                val json = JSONObject(String(file.readBytes(), charset = Charsets.UTF_8))
-                fromJSON(json, packaged = false, warnings = warnings)
-            } catch (e: Exception) {
-                warnings?.log(Manifest::class.java, "Invalid contents in file at ${file.path}.")
-                null
-            }
-        }
-
     }
 }
 
